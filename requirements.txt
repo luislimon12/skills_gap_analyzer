@@ -1,0 +1,19 @@
+# Role 1 — pipeline
+requests
+python-dotenv
+
+# Role 2 — resume parsing
+pdfplumber
+python-docx
+
+# Role 3 — scoring (added in week 3, listed now so setup is one step)
+spacy
+scikit-learn
+statsmodels
+
+# Role 4 — dashboard
+streamlit
+pandas
+
+# shared
+pyyaml

@@ -1,0 +1,12 @@
+# Shared config - all roles read from this file.
+database_path: "data/skills_gap.db"
+
+target_roles:
+  - "Data Analyst"
+  - "Data Engineer"
+  - "Data Scientist"
+
+scoring:
+  method: "priority"   # "priority" or "cosine" - decided in week 3
+
+# API keys are NOT stored here - they go in .env (see .env.example)
