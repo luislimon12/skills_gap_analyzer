@@ -32,14 +32,7 @@ Do not treat the current scaffold as a finished application or as a stable API.
 Put your real keys in a file called `.env` in the project root (this file is gitignored, never commit it).
 Use `.env.example` as the template — it shows which variables are needed but keeps the values blank.
 
-```
-ADZUNA_APP_ID=your_actual_id_here
-ADZUNA_APP_KEY=your_actual_key_here
-DATABASE_URL=sqlite:///data/skills_gap.db
-```
-
-Get Adzuna keys free at https://developer.adzuna.com/ (register, no cost).
-Greenhouse and Lever APIs don't need keys.
+DO NOT COMMIT THE KEYS FOR THE LOVE OF GOD
 
 ## Team ownership
 
