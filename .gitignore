@@ -1,0 +1,23 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# data (raw pulls + db can get big / contain personal resume data)
+data/raw/*
+data/processed/*
+data/cache/*
+data/skills_gap.db
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/cache/.gitkeep
+
+# streamlit
+.streamlit/
+
+# os
+.DS_Store

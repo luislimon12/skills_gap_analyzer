@@ -1,0 +1,14 @@
+# Role 1 config - which boards/roles to pull, rate limit notes.
+
+adzuna:
+  country: "ca"          # Canada
+  results_per_page: 50
+  max_pages_per_role: 5  # stay under the ~1000 calls/mo free tier
+
+greenhouse_boards: []    # add company board tokens here as strings, e.g. "airbnb"
+lever_boards: []         # add company names here, e.g. "netflix"
+
+target_roles:
+  - "Data Analyst"
+  - "Data Engineer"
+  - "Data Scientist"
