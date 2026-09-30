@@ -17,3 +17,7 @@ pandas
 
 # shared
 pyyaml
+
+# dev / tests
+pytest
+reportlab   # only used to generate a sample PDF in tests

@@ -1,11 +1,22 @@
-"""
-Role 4/2 - Component B: file uploader widget for resumes.
+"""Resume upload widget wired to the shared Role 2 parser."""
 
-Week 2 task. Stub for now - plan is a st.file_uploader that accepts
-.pdf/.docx and hands the file to src/resume/parse_pdf.py or parse_docx.py.
-"""
+import streamlit as st
+
+from src.resume.parse_resume import ResumeParseError, parse_resume
 
 
-def render_upload():
-    """TODO (week 2): st.file_uploader + call into src/resume parsers."""
-    raise NotImplementedError("Upload widget - build in week 2")
+def render_upload() -> str | None:
+    """Upload a PDF/DOCX resume and return its parsed plain text."""
+    uploaded_file = st.file_uploader(
+        "Upload your resume",
+        type=["pdf", "docx"],
+        help="Google Docs resumes can be downloaded as PDF or DOCX before uploading.",
+    )
+    if uploaded_file is None:
+        return None
+
+    try:
+        return parse_resume(uploaded_file)
+    except ResumeParseError as error:
+        st.error(str(error))
+        return None

@@ -1,0 +1,44 @@
+skill_name,category,aliases
+Python,Programming Languages,py
+Java,Programming Languages,
+JavaScript,Programming Languages,JS|ECMAScript
+TypeScript,Programming Languages,TS
+SQL,Databases,
+PostgreSQL,Databases,Postgres
+MySQL,Databases,
+SQLite,Databases,
+NoSQL,Databases,
+MongoDB,Databases,Mongo
+Microsoft Excel,Data Analysis,Excel
+Tableau,Data Visualization,
+Power BI,Data Visualization,PowerBI
+Looker,Data Visualization,
+Microsoft PowerPoint,Productivity,PowerPoint
+R,Programming Languages,
+Pandas,Data Analysis,
+NumPy,Data Analysis,
+scikit-learn,Machine Learning,sklearn
+TensorFlow,Machine Learning,
+PyTorch,Machine Learning,
+Machine Learning,Machine Learning,ML
+Statistics,Data Analysis,
+Data Visualization,Data Analysis,
+Data Analysis,Data Analysis,
+ETL,Data Engineering,
+Apache Spark,Data Engineering,Spark
+Airflow,Data Engineering,Apache Airflow
+dbt,Data Engineering,dbt Core
+Amazon Web Services,Cloud Computing,AWS
+Microsoft Azure,Cloud Computing,Azure
+Google Cloud Platform,Cloud Computing,GCP
+Docker,DevOps,
+Kubernetes,DevOps,K8s
+Git,Developer Tools,
+Linux,Operating Systems,
+REST API,Software Development,REST APIs|RESTful API
+HTML,Web Development,
+CSS,Web Development,
+React,Web Development,React.js
+Node.js,Web Development,NodeJS
+Agile,Project Management,
+Scrum,Project Management,

@@ -1,10 +1,10 @@
-"""
-Role 3 - Component G: Priority(s) = D x R x G x L scoring.
-
-Week 3 task (the math). Placeholder only for now.
-"""
+"""Gap scoring: weighted posting demand multiplied by resume-skill absence."""
 
 
-def priority_score(skill: str) -> float:
-    """TODO (week 3): implement Priority(s) = D x R x G x L, see sparknotes math section."""
-    raise NotImplementedError("Priority scoring math - build in week 3")
+def priority_score(weighted_demand: float, has_skill: bool | int) -> float:
+    """Return GapScore = weighted_demand * (1 - has_skill)."""
+    if not 0.0 <= weighted_demand <= 1.0:
+        raise ValueError("weighted_demand must be between 0 and 1.")
+    if has_skill not in (False, True, 0, 1):
+        raise ValueError("has_skill must be a boolean or 0/1.")
+    return weighted_demand * (1 - int(has_skill))
