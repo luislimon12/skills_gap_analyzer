@@ -1,10 +1,36 @@
-"""
-Role 4 - Component I: table of missing skills ranked by GapScore.
+"""Display ranked skill gaps supplied by the scoring layer."""
 
-Week 3-4 task, once Role 3's scorers exist. Stub for now.
-"""
+import pandas as pd
+import streamlit as st
+
+from src.dashboard.utils import rank_gap_scores
 
 
-def render_gap_table(gap_scores):
-    """TODO (week 3-4): st.dataframe of skills ranked by GapScore."""
-    raise NotImplementedError("Gap table - build once demand_scorer/priority_scorer exist")
+def render_gap_table(gap_scores: list[dict]) -> None:
+    """Render scored skills in descending GapScore order."""
+    if not gap_scores:
+        st.info("No skill-gap results are available for this resume and role.")
+        return
+
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "Skill": row["skill"],
+                    "Category": row["category"],
+                    "On resume": "Yes" if row["has_skill"] else "No",
+                    "Demand": f"{row['demand']:.0%}",
+                    "95% Wilson interval": (
+                        f"{row['confidence_low']:.0%}–{row['confidence_high']:.0%}"
+                    ),
+                    "Weighted demand": f"{row['weighted_demand']:.0%}",
+                    "GapScore": round(row["gap_score"], 3),
+                    "Postings": f"{row['count']} / {row['sample_size']}",
+                    "Experience (years)": row["experience_years"],
+                }
+                for row in rank_gap_scores(gap_scores)
+            ]
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )

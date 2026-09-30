@@ -44,6 +44,26 @@ flowchart LR
 
 **Color = owning role.** Gray = external/input, blue = Role 1, green = Role 2, orange = Role 3, purple = Role 4.
 
+## Implementation status (prototype)
+
+- **Role 1 — Data pipeline:** Adzuna, Greenhouse, and Lever fetchers, text
+  normalization, within-pull deduplication, and SQLite storage are implemented.
+  Live source configuration and Adzuna credentials are required for real pulls.
+- **Role 2 — Resume ingestion:** PDF/DOCX parsing, section extraction, and
+  experience date extraction are implemented. Plain-text/JSON upload and direct
+  Google Docs integration are not implemented.
+- **Role 3 — Scoring:** a curated starter taxonomy matcher, sample demand,
+  Wilson intervals, recency/required-preferred weighted demand, binary GapScore,
+  cosine FitScore, and per-skill dated experience evidence are implemented.
+  TF-IDF posting similarity is experimental and separate from skill scores.
+- **Role 4 — Dashboard:** resume upload, role selection, posting fetch/view,
+  score display, recommendations, and related-description browsing are wired.
+
+This is an end-to-end prototype, not a validated labor-market or student
+assessment tool. The local taxonomy is deliberately small; the Lightcast cache
+and O*NET mapping are not populated. Automated examples use synthetic postings.
+See [[TEAM_HANDOFF]] for remaining implementation and validation tasks.
+
 ## Pipeline
 
 1. **Collect postings** — pull a sample for the target role from job APIs / ATS feeds
@@ -103,7 +123,7 @@ $$\text{FitScore} = \frac{\vec{r} \cdot \vec{d}}{\|\vec{r}\|\,\|\vec{d}\|} \;\ri
 | Frontend | [Streamlit](https://github.com/streamlit/streamlit) |
 
 > [!tip]+ Key technique: Data storage
-> One SQLite database, three tables: `postings` (deduped, Role 1), `resumes` (parsed skill sets, Role 2), `skills` (cached Lightcast taxonomy so the matcher isn't hitting the API every request). Single file, whole team can share it — no server to run. ==Upgrade to Postgres only if you outgrow prototype scale.==
+> Postings are stored in SQLite. Resumes are processed in memory and are not persisted by the dashboard. The starter skill taxonomy is a checked-in CSV; the Lightcast cache is currently empty. Single-file storage suits the prototype — upgrade only if scale requires it.
 
 ## Team of 4
 
@@ -118,11 +138,16 @@ Checkpoints: end of week 2 (clean data from Roles 1–2), end of week 4 (full pi
 
 ## Timeline (5 weeks, compressible)
 
-1. Setup — API keys, pick 3–5 target roles, first raw pulls
-2. Finish ingestion — postings pipeline + resume-to-text
-3. Build scoring — taxonomy matcher + demand/GapScore/FitScore on real data
-4. Integrate — wire pipeline into dashboard, end-to-end test
-5. Polish — edge cases, thin-data roles, demo prep
+1. **Done — prototype setup:** source clients, resume parsing, and a starter
+   dashboard are implemented; APIs still need local credentials/configuration.
+2. **Done — ingestion:** normalized postings and PDF/DOCX resume-to-text work.
+3. **Done — initial scoring implementation:** matcher, demand, Wilson interval,
+   weighted demand, GapScore, FitScore, and sample tests are implemented.
+4. **Done — prototype integration:** dashboard runs the full workflow using
+   stored postings and displays scores.
+5. **Remaining — validate and harden:** add a production taxonomy, evaluate on
+   real representative postings, validate preferred/required parsing, improve
+   thin-data and document-format handling, and document privacy and score limits.
 
 ## Useful Links
 

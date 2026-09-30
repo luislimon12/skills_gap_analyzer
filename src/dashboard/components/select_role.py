@@ -1,11 +1,12 @@
-"""
-Role 4 - Component H: role selector dropdown.
+"""Target-role selector populated from the shared settings file."""
 
-Week 2 task. Stub for now - plan is a st.selectbox populated from
-config/settings.yaml target_roles.
-"""
+import streamlit as st
+
+from src.dashboard.utils import load_settings
 
 
-def render_role_selector():
-    """TODO (week 2): st.selectbox using target_roles from config/settings.yaml."""
-    raise NotImplementedError("Role selector - build in week 2")
+def render_role_selector(roles: list[str] | None = None) -> str:
+    """Render the target-role selector and return the selected role."""
+    if roles is None:
+        roles = load_settings()["target_roles"]
+    return st.selectbox("Target role", roles)
