@@ -8,7 +8,9 @@ from src.common.text import clean_text, html_to_text
 from src.pipeline import fetch_postings, run_pipeline
 from src.pipeline.dedup_postings import dedup_postings, make_posting_hash, normalize_company
 from src.pipeline.normalize import normalize_adzuna, normalize_greenhouse, normalize_lever, title_matches_role
-from src.pipeline.store_postings import init_db, insert_posting, insert_postings, load_postings
+from src.pipeline.store_postings import (
+    init_db, insert_posting, insert_postings, load_latest_market_snapshot, load_postings,
+)
 
 ADZUNA_RAW = {
     "count": 2,
@@ -196,7 +198,9 @@ def test_run_pipeline_with_stubbed_sources(tmp_path, monkeypatch):
     summary = run_pipeline.run(config=config, db_path=db, save_raw=False)
 
     # adzuna: 1 matching title (Business Analyst filtered), greenhouse: 1, lever: 1
-    assert summary == {"fetched": 3, "unique": 2, "written": 2, "errors": []}
+    assert summary == {"fetched": 3, "unique": 2, "written": 2, "errors": [],
+                       "market": {"Data Analyst": {"total_count": 2, "mean_salary": None}}}
+    assert load_latest_market_snapshot("Data Analyst", db)["total_count"] == 2
     assert {p["source"] for p in load_postings(db_path=db)} == {"greenhouse", "lever"}
 
 
@@ -210,3 +214,87 @@ def test_run_pipeline_skips_adzuna_without_keys(tmp_path, monkeypatch):
     config = {"target_roles": ["Data Analyst"], "greenhouse_boards": [], "lever_boards": []}
     summary = run_pipeline.run(config=config, db_path=tmp_path / "run.db", save_raw=False)
     assert summary["fetched"] == 0
+
+
+# ---------- Adzuna salary, market data, and key safety ----------
+
+ADZUNA_WITH_SALARY = {
+    "count": 1234,
+    "mean": 81000.5,
+    "results": [
+        {
+            "id": "9001", "title": "Data Analyst",
+            "company": {"display_name": "Maple Data"}, "location": {"display_name": "Toronto"},
+            "created": "2026-09-25T00:00:00Z", "redirect_url": "https://www.adzuna.ca/details/9001",
+            "description": "SQL and Tableau", "salary_min": 70000, "salary_max": 90000,
+            "salary_is_predicted": "1", "contract_time": "full_time",
+            "category": {"label": "IT Jobs"},
+        },
+    ],
+}
+
+
+def test_normalize_adzuna_keeps_salary_fields():
+    posting = normalize_adzuna(ADZUNA_WITH_SALARY, "Data Analyst")[0]
+    assert (posting["salary_min"], posting["salary_max"]) == (70000.0, 90000.0)
+    assert posting["salary_is_predicted"] is True
+    assert posting["contract_time"] == "full_time"
+    assert posting["category"] == "IT Jobs"
+    # non-Adzuna sources get the same keys, empty
+    lever = normalize_lever(LEVER_RAW, "netflix", "Data Analyst")[0]
+    assert lever["salary_min"] is None and lever["salary_is_predicted"] is False
+
+
+def test_salary_fields_round_trip_through_sqlite(db):
+    insert_postings(normalize_adzuna(ADZUNA_WITH_SALARY, "Data Analyst"), db)
+    stored = load_postings(db_path=db)[0]
+    assert stored["salary_max"] == 90000.0
+    assert stored["salary_is_predicted"] is True
+
+
+def test_pull_adzuna_returns_market_snapshot_and_passes_filters(monkeypatch):
+    calls = []
+
+    def fake_fetch(role, country, per_page, page, max_days_old=None, where=None):
+        calls.append((role, country, page, max_days_old, where))
+        return ADZUNA_WITH_SALARY
+
+    monkeypatch.setattr(fetch_postings, "fetch_adzuna_postings", fake_fetch)
+    cfg = {"country": "ca", "results_per_page": 50, "max_pages_per_role": 3,
+           "max_days_old": 30, "where": "Toronto"}
+    postings, market = run_pipeline.pull_adzuna("Data Analyst", cfg, save_raw=False)
+    assert len(postings) == 1
+    assert market == {"total_count": 1234, "mean_salary": 81000.5}
+    assert calls == [("Data Analyst", "ca", 1, 30, "Toronto")]  # short page -> stop
+
+
+def test_adzuna_errors_never_leak_api_keys(monkeypatch):
+    import requests
+
+    monkeypatch.setenv("ADZUNA_APP_ID", "my-id")
+    monkeypatch.setenv("ADZUNA_APP_KEY", "super-secret-key")
+
+    def broken_get(url, params=None, timeout=None):
+        raise requests.ConnectionError(
+            f"Max retries exceeded with url: /v1/api/jobs/ca/search/1?app_id={params['app_id']}"
+            f"&app_key={params['app_key']}&what=x"
+        )
+
+    monkeypatch.setattr(fetch_postings._SESSION, "get", broken_get)
+    with pytest.raises(fetch_postings.AdzunaError) as error:
+        fetch_postings.fetch_adzuna_postings("Data Analyst")
+    assert "super-secret-key" not in str(error.value)
+    assert "my-id" not in str(error.value)
+    assert isinstance(error.value, requests.RequestException)  # run_pipeline still catches it
+
+
+def test_adzuna_bad_keys_give_a_clear_message(monkeypatch):
+    class Response:
+        status_code = 401
+        ok = False
+
+    monkeypatch.setenv("ADZUNA_APP_ID", "my-id")
+    monkeypatch.setenv("ADZUNA_APP_KEY", "wrong")
+    monkeypatch.setattr(fetch_postings._SESSION, "get", lambda *a, **k: Response())
+    with pytest.raises(fetch_postings.AdzunaError, match="rejected the API keys"):
+        fetch_postings.fetch_adzuna_postings("Data Analyst")

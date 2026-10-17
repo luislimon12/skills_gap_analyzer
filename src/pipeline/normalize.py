@@ -17,6 +17,11 @@ Every normalize_* function returns a list of posting dicts with these keys
     is_truncated      True when full_text is only an excerpt (Adzuna)
     requirement_level None - left for Role 3 (required vs. preferred is per skill mention)
     unique_hash       see dedup_postings.make_posting_hash
+    salary_min        advertised annual salary lower bound (Adzuna only), else None
+    salary_max        advertised annual salary upper bound (Adzuna only), else None
+    salary_is_predicted True when Adzuna estimated the salary instead of the employer posting it
+    contract_time     "full_time" | "part_time" | None
+    category          Adzuna job category label, "" if unknown
 """
 
 import re
@@ -52,7 +57,18 @@ def _epoch_ms_to_date(value: int | None) -> str | None:
     return datetime.fromtimestamp(value / 1000, tz=timezone.utc).date().isoformat()
 
 
+def _salary(value) -> float | None:
+    try:
+        return float(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _finish(posting: dict) -> dict:
+    for key in ("salary_min", "salary_max", "contract_time"):
+        posting.setdefault(key, None)
+    posting.setdefault("salary_is_predicted", False)
+    posting.setdefault("category", "")
     posting["requirement_level"] = None
     posting["unique_hash"] = make_posting_hash(posting["title"], posting["company"], posting["posted_date"] or "")
     return posting
@@ -74,6 +90,11 @@ def normalize_adzuna(raw: dict, role: str) -> list[dict]:
             # Adzuna wraps matched query terms in <strong>, so it still needs HTML stripping
             "full_text": html_to_text(job.get("description")),
             "is_truncated": True,
+            "salary_min": _salary(job.get("salary_min")),
+            "salary_max": _salary(job.get("salary_max")),
+            "salary_is_predicted": str(job.get("salary_is_predicted", "0")) == "1",
+            "contract_time": job.get("contract_time"),
+            "category": clean_text((job.get("category") or {}).get("label")),
         }))
     return postings
 

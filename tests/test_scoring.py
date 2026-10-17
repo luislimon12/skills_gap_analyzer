@@ -97,9 +97,9 @@ def test_matcher_is_case_insensitive_boundary_aware_and_uses_aliases():
 
 
 def test_matcher_reports_useful_evidence():
-    mentions = find_skill_mentions("Built dashboards with Tableau.")
-    assert [mention["skill"] for mention in mentions] == ["Tableau"]
-    assert "Tableau" in mentions[0]["evidence"]
+    mentions = {m["skill"]: m for m in find_skill_mentions("Built dashboards with Tableau.")}
+    assert set(mentions) == {"Tableau", "Dashboards"}
+    assert "Tableau" in mentions["Tableau"]["evidence"]
 
 
 def test_recency_weights_and_unknown_date_fallback():
@@ -158,7 +158,7 @@ def test_end_to_end_analysis_returns_gaps_fit_and_experience_evidence():
     skills = {row["skill"]: row for row in analysis["skills"]}
 
     assert analysis["postings_count"] == 3
-    assert analysis["resume_skills"] == ["Python", "SQL"]
+    assert analysis["resume_skills"] == ["Python", "SQL", "Data Pipelines"]
     assert 0 < analysis["fit_score"] < 100
     assert skills["Python"]["has_skill"] is True
     assert skills["Python"]["gap_score"] == 0.0

@@ -17,6 +17,7 @@ _BLOCK_TAGS = {
     "tr", "table", "section", "article", "header", "footer", "blockquote",
 }
 _BULLET_CHARS = "•●▪■◦○◆◇►▸‣⁃∙·*"
+_QUOTES = str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"'})
 _BULLET_LINE = re.compile(rf"^\s*[{re.escape(_BULLET_CHARS)}]\s*")
 
 
@@ -67,6 +68,8 @@ def clean_text(text: str | None) -> str:
         return ""
     # NFKC folds ligatures (ﬁ -> fi) and full-width chars that PDFs love to emit
     text = unicodedata.normalize("NFKC", text)
+    # curly quotes -> straight, so "driver’s licence" matches "driver's licence"
+    text = text.translate(_QUOTES)
     text = text.replace(" ", " ").replace("​", "").replace("\r\n", "\n").replace("\r", "\n")
     lines = []
     for line in text.split("\n"):

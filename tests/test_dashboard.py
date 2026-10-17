@@ -49,3 +49,32 @@ def test_rank_gap_scores_orders_highest_gap_first_and_limits_results():
     ]
 
     assert [row["skill"] for row in rank_gap_scores(scores, limit=2)] == ["Python", "SQL"]
+
+
+def test_salary_summary_uses_range_midpoints_and_skips_missing():
+    from src.dashboard.utils import salary_summary
+
+    postings = [
+        {"salary_min": 60000, "salary_max": 80000, "salary_is_predicted": True},
+        {"salary_min": 90000, "salary_max": None, "salary_is_predicted": False},
+        {"salary_min": None, "salary_max": None},
+        {},
+    ]
+    summary = salary_summary(postings)
+    assert summary["count"] == 2
+    assert summary["median"] == 80000
+    assert summary["predicted_share"] == 0.5
+    assert salary_summary([{}]) is None
+
+
+def test_analysis_rows_for_export_are_sorted_and_flat():
+    from src.dashboard.utils import analysis_rows_for_export
+
+    row = {
+        "skill": "SQL", "category": "Databases", "has_skill": False, "count": 2, "sample_size": 3,
+        "demand": 2 / 3, "confidence_low": 0.2, "confidence_high": 0.9, "weighted_demand": 0.6,
+        "gap_score": 0.6, "required_count": 2, "preferred_count": 0, "experience_years": 0.0,
+    }
+    rows = analysis_rows_for_export([{**row, "skill": "Excel", "gap_score": 0.1}, row])
+    assert [r["skill"] for r in rows] == ["SQL", "Excel"]
+    assert rows[0]["demand"] == 0.6667

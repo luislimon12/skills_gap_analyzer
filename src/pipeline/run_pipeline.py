@@ -21,7 +21,7 @@ import yaml
 from src.pipeline import fetch_postings as fetch
 from src.pipeline.dedup_postings import dedup_postings
 from src.pipeline.normalize import normalize_adzuna, normalize_greenhouse, normalize_lever, title_matches_role
-from src.pipeline.store_postings import DB_PATH, init_db, insert_postings
+from src.pipeline.store_postings import DB_PATH, init_db, insert_market_snapshot, insert_postings
 
 log = logging.getLogger(__name__)
 
@@ -37,11 +37,23 @@ def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
 
 
-def pull_adzuna(role: str, cfg: dict, save_raw: bool) -> list[dict]:
+def pull_adzuna(role: str, cfg: dict, save_raw: bool) -> tuple[list[dict], dict]:
+    """Pull up to max_pages_per_role pages for a role.
+
+    Returns (postings, market) where market holds Adzuna's total live count and
+    mean advertised salary for the search, taken from the first page.
+    """
     postings = []
+    market: dict = {}
     per_page = cfg.get("results_per_page", 50)
     for page in range(1, cfg.get("max_pages_per_role", 1) + 1):
-        raw = fetch.fetch_adzuna_postings(role, cfg.get("country", "ca"), per_page, page)
+        raw = fetch.fetch_adzuna_postings(
+            role, cfg.get("country", "ca"), per_page, page,
+            max_days_old=cfg.get("max_days_old") or None,
+            where=cfg.get("where") or None,
+        )
+        if page == 1:
+            market = {"total_count": raw.get("count"), "mean_salary": raw.get("mean")}
         if save_raw:
             fetch.save_raw(raw, f"adzuna_{_slug(role)}_page{page}.json")
         batch = normalize_adzuna(raw, role)
@@ -51,14 +63,15 @@ def pull_adzuna(role: str, cfg: dict, save_raw: bool) -> list[dict]:
         if len(raw.get("results", [])) < per_page:
             break  # last page
         time.sleep(cfg.get("request_delay_seconds", 1))
-    return postings
+    return postings, market
 
 
 def run(roles: list[str] | None = None, max_pages: int | None = None, save_raw: bool = True,
         skip_adzuna: bool = False, db_path: Path = DB_PATH, config: dict | None = None) -> dict:
     """Pull every configured source for every role and store the deduped result.
 
-    Returns a summary: {"fetched": n, "unique": n, "written": n, "errors": [...]}.
+    Returns a summary: {"fetched": n, "unique": n, "written": n, "errors": [...],
+    "market": {role: {"total_count": n, "mean_salary": x}}} (market only for Adzuna pulls).
     """
     config = config if config is not None else load_config()
     roles = roles or config.get("target_roles", [])
@@ -72,6 +85,8 @@ def run(roles: list[str] | None = None, max_pages: int | None = None, save_raw: 
 
     postings: list[dict] = []
     errors: list[str] = []
+    market: dict[str, dict] = {}
+    init_db(db_path)
 
     # Boards return every job at the company, so fetch each once and filter per role.
     boards = []
@@ -93,7 +108,12 @@ def run(roles: list[str] | None = None, max_pages: int | None = None, save_raw: 
     for role in roles:
         if use_adzuna:
             try:
-                postings.extend(pull_adzuna(role, adzuna_cfg, save_raw))
+                role_postings, role_market = pull_adzuna(role, adzuna_cfg, save_raw)
+                postings.extend(role_postings)
+                if role_market:
+                    market[role] = role_market
+                    insert_market_snapshot(role, adzuna_cfg.get("country", "ca"),
+                                           role_market["total_count"], role_market["mean_salary"], db_path)
             except requests.RequestException as e:
                 errors.append(f"adzuna:{role}: {e}")
                 log.error("Adzuna pull failed for %s: %s", role, e)
@@ -102,9 +122,9 @@ def run(roles: list[str] | None = None, max_pages: int | None = None, save_raw: 
                 postings.extend(normalizer(board_raw[(source, name)], name, role))
 
     unique = dedup_postings(postings)
-    init_db(db_path)
     written = insert_postings(unique, db_path)
-    summary = {"fetched": len(postings), "unique": len(unique), "written": written, "errors": errors}
+    summary = {"fetched": len(postings), "unique": len(unique), "written": written, "errors": errors,
+               "market": market}
     log.info("Postings pull done: %s", summary)
     return summary
 

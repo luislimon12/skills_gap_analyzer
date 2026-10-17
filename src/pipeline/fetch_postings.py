@@ -10,6 +10,7 @@ See .env.example in the project root for the variable names.
 
 import os
 import json
+import re
 from pathlib import Path
 
 import requests
@@ -35,12 +36,30 @@ def _session() -> requests.Session:
 _SESSION = _session()
 
 
+class AdzunaError(requests.RequestException):
+    """Adzuna request failed. The message never contains the app_id/app_key."""
+
+
+_KEY_PARAMS = re.compile(r"(app_id|app_key)=[^&\s'\"]+")
+
+
+def _redact(message: str) -> str:
+    """requests puts the full URL (query string included) in its error text."""
+    return _KEY_PARAMS.sub(r"\1=REDACTED", message)
+
+
 def adzuna_keys_configured() -> bool:
     return bool(os.getenv("ADZUNA_APP_ID") and os.getenv("ADZUNA_APP_KEY"))
 
 
-def fetch_adzuna_postings(role: str, country: str = "ca", results_per_page: int = 50, page: int = 1) -> dict:
-    """Pull one page of postings for a role from Adzuna. Returns raw JSON."""
+def fetch_adzuna_postings(role: str, country: str = "ca", results_per_page: int = 50, page: int = 1,
+                          max_days_old: int | None = None, where: str | None = None) -> dict:
+    """Pull one page of postings for a role from Adzuna. Returns raw JSON.
+
+    The response also carries ``count`` (total live matches) and ``mean``
+    (Adzuna's average advertised salary for the search), which the pipeline
+    stores as a market snapshot.
+    """
     if not adzuna_keys_configured():
         raise RuntimeError(
             "Missing Adzuna API keys. Copy .env.example to .env and fill in "
@@ -55,9 +74,22 @@ def fetch_adzuna_postings(role: str, country: str = "ca", results_per_page: int 
         "results_per_page": results_per_page,
         "content-type": "application/json",
     }
+    if max_days_old:
+        params["max_days_old"] = int(max_days_old)
+    if where:
+        params["where"] = where
 
-    response = _SESSION.get(url, params=params, timeout=TIMEOUT)
-    response.raise_for_status()
+    try:
+        response = _SESSION.get(url, params=params, timeout=TIMEOUT)
+    except requests.RequestException as e:
+        raise AdzunaError(f"Could not reach Adzuna: {_redact(str(e))}") from None
+    if response.status_code in (401, 403):
+        raise AdzunaError(
+            f"Adzuna rejected the API keys (HTTP {response.status_code}). "
+            "Check ADZUNA_APP_ID and ADZUNA_APP_KEY in .env."
+        )
+    if not response.ok:
+        raise AdzunaError(f"Adzuna returned HTTP {response.status_code} for '{role}' page {page}.")
     return response.json()
 
 
