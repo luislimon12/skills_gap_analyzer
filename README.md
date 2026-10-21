@@ -53,12 +53,21 @@ optional `where` location filter live in `src/pipeline/config_postings.yaml`.
   occupations using ~61,000 O*NET job titles (and common abbreviations such as
   PSW, RPN, ECE, AZ driver). You can add or remove occupations in the picker.
 - **Posting-based skills**: role fit (cosine similarity), recommended skills to
-  learn next ranked by GapScore, a demand chart with 95% Wilson intervals, the
-  full skill table, and a CSV download.
+  learn next ranked by GapScore, the full skill table, and a CSV download.
+- **Skill explorer**: a clickable demand chart. Green bars are the skills you
+  search with; they start as the skills on your resume. Click a bar to add or
+  remove a skill (double-click to undo your clicks), sort by demand, your skills
+  or biggest gaps. Below it, postings are ranked by how heavily they lean on the
+  picked skills: Match balances the share of a posting's skill list you cover
+  with how many of your picked skills it asks for (required mentions count
+  double preferred ones).
 - **Other recurring requirements**: short phrases that recur across the
   postings but aren't in the taxonomy (e.g. "steel-toe boots", "cross-border
-  routes"), flagged when your resume doesn't mention them. Hints only: they
-  don't affect scores.
+  routes"), flagged when your resume doesn't mention them. Job-ad filler
+  ("Job Description", "world-class team"), the posting's own company and city,
+  and phrases from a single employer are dropped. Once other roles have been
+  fetched, a phrase must also be at least twice as common for this role as for
+  the others. Hints only: they don't affect scores.
 - **O*NET occupation baseline**: software/technology and tools/equipment
   O*NET lists for the selected occupations, and which of them your resume
   mentions. Reference only: it does not change scores.
@@ -93,6 +102,14 @@ To add or fix a skill, edit `starter_skills.csv` (tech) or
 ambiguous terms that must match exact casing with strict boundaries. For
 example, `R` doesn't match "R&D", and `Excel` doesn't match "you will excel".
 Other terms tolerate a plural "s"/"es" ("reach trucks" matches "reach truck").
+An optional `ambiguous_terms` column marks everyday words that only mean the
+skill in context: "framing" counts as Carpentry only when the same text has
+another Skilled Trades skill, so "framing business questions" doesn't. O*NET
+product aliases that are plain English words ("Meet", "Reports", "Exchange")
+are ignored; the full names ("Google Meet") still match.
+
+Resume skills are matched against every section except hobbies/interests and
+references, so "wood carving" under Interests is not read as a job skill.
 Avoid aliases that appear in benefits boilerplate ("compensation", "health
 insurance", "flexible scheduling"); `tests/test_taxonomy.py` checks for these.
 

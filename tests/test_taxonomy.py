@@ -263,3 +263,87 @@ def test_discover_phrases_finds_uncatalogued_requirements():
     assert phrases["long-haul driving"]["in_resume"] is True
     assert phrases["cross-border routes"]["share"] == 0.75
     assert not any("whmis" in p or "licence" in p or "driver" in p for p in phrases)  # taxonomy / role words
+
+
+# ---------- false positives on resumes and in postings ----------
+
+@pytest.mark.parametrize(
+    "text, present, absent",
+    [
+        # Everyday words only count with a same-category skill nearby.
+        ("Framing business questions; painting and cooking on weekends.", [],
+         ["Carpentry", "Painting", "Cooking"]),
+        ("Framing, drywall and finish work on residential sites.", ["Carpentry", "Drywall"], []),
+        ("Ran an audit of licences; coaching new hires; data labeling.", [],
+         ["Auditing", "Training and Development", "Packaging"]),
+        # O*NET aliases that are plain English words are gone; specific names still match.
+        ("Meet weekly to review reports and exchange feedback.", [],
+         ["Google Meet", "Oracle Reports", "Microsoft Exchange"]),
+        ("Hosted calls on Google Meet and Microsoft Exchange.", ["Google Meet", "Microsoft Exchange"], []),
+    ],
+)
+def test_matcher_needs_context_for_everyday_words(text, present, absent):
+    found = match_skills(text)
+    for skill in present:
+        assert skill in found, (skill, found)
+    for skill in absent:
+        assert skill not in found, (skill, found)
+
+
+def test_resume_skills_ignore_hobbies_and_interests():
+    from src.scoring.analyze import resume_skill_names
+
+    resume = (
+        "Alex Morgan\n\nEXPERIENCE\nIT Help Desk, Seneca\nSep 2024 - Present\n"
+        "- Framing business questions as SQL and Python reports.\n\n"
+        "SKILLS\nPython, SQL\n\nINTERESTS\nWood carving, carpentry, painting, cooking, landscaping\n"
+    )
+    skills = resume_skill_names(resume)
+    assert {"Python", "SQL"} <= set(skills)
+    assert not {"Carpentry", "Painting", "Cooking", "Landscaping"} & set(skills), skills
+
+
+def test_posting_demand_keeps_corroborated_ambiguous_terms():
+    from src.scoring.demand_scorer import demand_profile
+
+    postings = [
+        {"title": "Carpenter", "full_text": "Requirements:\nFraming and drywall.\nWHMIS."},
+        {"title": "Data Analyst", "full_text": "Framing business problems with SQL."},
+    ]
+    counts = {row["skill"]: row["count"] for row in demand_profile(postings)}
+    assert counts["Carpentry"] == 1
+
+
+def test_discover_phrases_drops_posting_filler_and_employer_names():
+    from src.scoring.phrase_discovery import discover_phrases
+
+    companies = ["Northwind Health", "Contoso Bank", "Fabrikam Retail", "Litware"]
+    postings = [
+        {"title": "Data Analyst", "company": companies[i % 4], "location": "Toronto, Ontario",
+         "full_text": f"Job Description: {companies[i % 4]} is a world-class organization in Toronto. "
+                      "Real-world impact around the world. Cohort retention reporting."}
+        for i in range(8)
+    ]
+    phrases = {row["phrase"] for row in discover_phrases(postings, role="Data Analyst")}
+    assert "cohort retention reporting" in phrases
+    assert not phrases & {"description", "world", "world-class", "toronto", "northwind health", "contoso bank"}
+
+    # Same posting from one employer only: not a recurring requirement across the market.
+    single = [{**p, "company": "Northwind Health"} for p in postings] + [
+        {"title": "Data Analyst", "company": "Contoso Bank", "full_text": "SQL."}
+    ]
+    assert "cohort retention reporting" not in {r["phrase"] for r in discover_phrases(single, role="Data Analyst")}
+
+
+def test_discover_phrases_background_removes_phrases_common_to_every_role():
+    from src.scoring.phrase_discovery import discover_phrases
+
+    def posting(role, extra):
+        return {"title": role, "full_text": f"Hybrid office in a modern campus. {extra}"}
+
+    postings = [posting("Data Analyst", "Cohort retention reporting.") for _ in range(6)]
+    background = [posting("Electrician", "Panel upgrades.") for _ in range(30)]
+    without = {row["phrase"] for row in discover_phrases(postings, role="Data Analyst")}
+    with_bg = {row["phrase"] for row in discover_phrases(postings, role="Data Analyst", background=background)}
+    assert "modern campus" in without and "modern campus" not in with_bg
+    assert "cohort retention reporting" in with_bg

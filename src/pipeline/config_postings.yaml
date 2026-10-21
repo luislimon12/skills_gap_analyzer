@@ -13,6 +13,9 @@ adzuna:
 greenhouse_boards: []    # add company board tokens here as strings, e.g. "airbnb"
 lever_boards: []         # add company names here, e.g. "netflix"
 
+# Roles fetched by `python -m src.pipeline.run_pipeline` with no --roles (each costs
+# up to max_pages_per_role API calls). The dashboard offers more roles (config/settings.yaml)
+# and fetches any of them on demand.
 target_roles:
   - "Data Analyst"
   - "Software Developer"

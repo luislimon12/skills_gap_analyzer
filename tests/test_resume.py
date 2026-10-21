@@ -169,3 +169,13 @@ def test_parse_plain_text_resume_from_path_and_upload(tmp_path):
     upload = io.BytesIO(body.encode("cp1252"))
     upload.name = "resume.txt"
     assert parse_resume(upload).startswith("Jordan Lee")
+
+
+def test_skill_evidence_text_drops_interests_and_references():
+    from src.resume.extract_sections import skill_evidence_text
+
+    text = "SKILLS\nPython\n\nHOBBIES & INTERESTS\nWood carving\n\nREFERENCES\nAvailable on request\n"
+    sections = extract_sections(text)
+    assert sections["interests"] == "Wood carving"
+    evidence = skill_evidence_text(text)
+    assert "Python" in evidence and "carving" not in evidence and "request" not in evidence

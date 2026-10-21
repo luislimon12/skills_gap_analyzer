@@ -14,8 +14,9 @@ import streamlit as st  # noqa: E402
 from src.dashboard.components.select_role import render_role_selector  # noqa: E402
 from src.dashboard.components.show_baseline import render_onet_baseline  # noqa: E402
 from src.dashboard.components.show_phrases import render_discovered_phrases  # noqa: E402
-from src.dashboard.components.show_gaps import render_demand_chart, render_gap_table  # noqa: E402
+from src.dashboard.components.show_gaps import render_gap_table  # noqa: E402
 from src.dashboard.components.show_recommendations import render_recommendations  # noqa: E402
+from src.dashboard.components.skill_explorer import render_skill_explorer  # noqa: E402
 from src.dashboard.components.upload_resume import render_upload  # noqa: E402
 from src.dashboard.utils import (  # noqa: E402
     analysis_rows_for_export,
@@ -27,8 +28,9 @@ from src.dashboard.utils import (  # noqa: E402
 from src.pipeline.fetch_postings import adzuna_keys_configured  # noqa: E402
 from src.pipeline.run_pipeline import load_config as load_pipeline_config  # noqa: E402
 from src.pipeline.run_pipeline import run as run_postings_pipeline  # noqa: E402
-from src.pipeline.store_postings import load_latest_market_snapshot  # noqa: E402
-from src.scoring.analyze import analyze_role  # noqa: E402
+from src.pipeline.store_postings import load_latest_market_snapshot, load_postings  # noqa: E402
+from src.resume.extract_sections import skill_evidence_text  # noqa: E402
+from src.scoring.analyze import analyze_role, resume_skill_names  # noqa: E402
 from src.scoring.onet_baseline import occupation_choices, occupation_codes_for_role, onet_baseline  # noqa: E402
 from src.scoring.phrase_discovery import discover_phrases  # noqa: E402
 from src.scoring.skill_matcher import SkillMatcher  # noqa: E402
@@ -48,8 +50,8 @@ def cached_analysis(resume_text: str, postings: list[dict]) -> dict:
 
 
 @st.cache_data(show_spinner=False)
-def cached_phrases(resume_text: str, postings: list[dict], role: str) -> list[dict]:
-    return discover_phrases(postings, get_matcher(), resume_text=resume_text, role=role)
+def cached_phrases(resume_text: str, postings: list[dict], role: str, background: list[dict]) -> list[dict]:
+    return discover_phrases(postings, get_matcher(), resume_text=resume_text, role=role, background=background)
 
 
 def money(value: float | None, currency: str = "$") -> str:
@@ -188,7 +190,7 @@ if not default_codes:
 
 resume_text = resume_text or ""
 matcher = get_matcher()
-resume_skills = [skill.name for skill in matcher.match(resume_text)] if resume_text else []
+resume_skills = resume_skill_names(resume_text, matcher)
 
 st.subheader("Resume analysis" if resume_text else "Role analysis")
 if resume_text:
@@ -233,8 +235,11 @@ with postings_tab:
                 render_recommendations(analysis["gaps"])
             elif resume_text:
                 st.success("Every skill detected in this posting sample also appears in your resume.")
-            st.markdown("#### Most-demanded skills")
-            render_demand_chart(analysis["skills"])
+            st.markdown("#### Explore skills and find matching postings")
+            render_skill_explorer(
+                analysis["skills"], postings, resume_skills, key=f"{role}:{'|'.join(resume_skills)}",
+                matcher=matcher,
+            )
             st.markdown("#### All detected skills")
             render_gap_table(analysis["skills"])
             st.download_button(
@@ -251,12 +256,17 @@ with phrases_tab:
     if not postings:
         st.info("Fetch postings for this role to find recurring requirements.")
     else:
-        render_discovered_phrases(cached_phrases(resume_text, postings, role), has_resume=bool(resume_text))
+        # Other roles' postings show which phrases are job-ad filler rather than this role's requirements.
+        background = [p for p in load_postings(db_path=database_path) if p["role"] != role]
+        render_discovered_phrases(
+            cached_phrases(resume_text, postings, role, background), has_resume=bool(resume_text)
+        )
 
 with baseline_tab:
+    evidence_text = skill_evidence_text(resume_text)  # hobbies and references aren't job skills
     render_onet_baseline(
-        onet_baseline(soc_codes, resume_skills, resume_text=resume_text, kind="technology"),
-        onet_baseline(soc_codes, resume_skills, resume_text=resume_text, kind="tool"),
+        onet_baseline(soc_codes, resume_skills, resume_text=evidence_text, kind="technology"),
+        onet_baseline(soc_codes, resume_skills, resume_text=evidence_text, kind="tool"),
         has_resume=bool(resume_text),
     )
 

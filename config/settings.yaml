@@ -4,18 +4,79 @@ database_path: "data/skills_gap.db"
 # Example roles offered in the dashboard. Any other job title can be typed in
 # the dashboard; Adzuna searches it and O*NET occupations are matched automatically.
 target_roles:
+  # Tech and data
   - "Data Analyst"
+  - "Data Scientist"
+  - "Data Engineer"
+  - "Business Analyst"
+  - "Business Intelligence Analyst"
+  - "Machine Learning Engineer"
   - "Software Developer"
-  - "Registered Nurse"
-  - "Personal Support Worker"
-  - "Electrician"
+  - "Web Developer"
+  - "Full Stack Developer"
+  - "DevOps Engineer"
+  - "Cloud Engineer"
+  - "Cybersecurity Analyst"
+  - "IT Support"
+  - "Network Administrator"
+  - "Database Administrator"
+  - "QA Analyst"
+  - "UX Designer"
+  # Business, office and finance
+  - "Project Manager"
+  - "Product Manager"
   - "Accountant"
+  - "Bookkeeper"
+  - "Financial Analyst"
+  - "Payroll Administrator"
   - "Administrative Assistant"
+  - "Receptionist"
+  - "HR Coordinator"
+  - "Recruiter"
+  - "Marketing Coordinator"
+  - "Digital Marketing Specialist"
+  - "Graphic Designer"
+  - "Paralegal"
+  # Sales and customer service
+  - "Customer Service Representative"
+  - "Sales Representative"
   - "Retail Sales Associate"
+  - "Cashier"
+  # Healthcare
+  - "Registered Nurse"
+  - "Registered Practical Nurse"
+  - "Personal Support Worker"
+  - "Pharmacy Technician"
+  - "Medical Office Assistant"
+  - "Dental Assistant"
+  - "Laboratory Technician"
+  # Skilled trades and engineering
+  - "Electrician"
+  - "Plumber"
+  - "HVAC Technician"
+  - "Welder"
+  - "Carpenter"
+  - "Millwright"
+  - "Automotive Technician"
+  - "Mechanical Engineer"
+  - "Civil Engineer"
+  # Logistics and transportation
   - "Warehouse Associate"
+  - "Forklift Operator"
   - "AZ Driver"
+  - "Delivery Driver"
+  # Food and hospitality
   - "Line Cook"
+  - "Chef"
+  - "Barista"
+  - "Server"
+  # Education, community and security
   - "Early Childhood Educator"
+  - "Teacher"
+  - "Educational Assistant"
+  - "Social Worker"
+  - "Security Guard"
+  - "Custodian"
 
 scoring:
   method: "priority"   # GapScore = weighted_demand * (1 - has_skill)
@@ -30,5 +91,22 @@ onet_occupations:
   "Business Intelligence Analyst": ["15-2051.01"]
   "Machine Learning Engineer": ["15-2051.00", "15-1252.00"]
   "Software Developer": ["15-1252.00", "15-1253.00", "15-1254.00"]
+  "Full Stack Developer": ["15-1254.00", "15-1252.00"]
+  "DevOps Engineer": ["15-1244.00", "15-1252.00", "15-1299.08"]
+  "Cloud Engineer": ["15-1241.00", "15-1299.08", "15-1244.00"]
+  "IT Support": ["15-1232.00"]
+  "QA Analyst": ["15-1253.00"]
+  "UX Designer": ["15-1255.00"]
+  "Product Manager": ["15-1299.09", "11-2021.00"]
+  "Payroll Administrator": ["43-3051.00"]
+  "HR Coordinator": ["13-1071.00", "43-4161.00"]
+  "Marketing Coordinator": ["13-1161.00", "11-2021.00"]
+  "Sales Representative": ["41-4012.00", "41-4011.00"]
+  "Registered Practical Nurse": ["29-2061.00"]
+  "Medical Office Assistant": ["43-6013.00", "31-9092.00"]
+  "Laboratory Technician": ["29-2012.00", "19-4021.00", "19-4031.00"]
+  "Automotive Technician": ["49-3023.00"]
+  "Delivery Driver": ["53-3033.00", "53-3031.00"]
+  "Teacher": ["25-2021.00", "25-2031.00"]
 
 # API keys are NOT stored here - they go in .env (see .env.example)

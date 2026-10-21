@@ -66,8 +66,15 @@ def _posting_text(posting: dict) -> str:
     )
 
 
-def _posting_skill_weights(posting: dict, matcher: SkillMatcher) -> dict[str, tuple[Skill, float]]:
-    """Match a posting and infer preferred-only mentions from nearby headings/text."""
+def posting_skill_weights(posting: dict, matcher: SkillMatcher) -> dict[str, tuple[Skill, float]]:
+    """Match a posting and infer preferred-only mentions from nearby headings/text.
+
+    Returns ``{skill key: (skill, requirement weight)}``: 1.0 for a required
+    mention, 0.5 when every mention is preferred/nice-to-have.
+    """
+    # Ambiguous terms ("framing") are corroborated against the whole posting,
+    # then each line is matched without corroboration but limited to those skills.
+    in_posting = {skill.name.casefold() for skill in matcher.match(_posting_text(posting))}
     requirement_by_skill: dict[str, float] = {}
     global_level = str(posting.get("requirement_level") or "").casefold()
     section_weight = REQUIREMENT_WEIGHTS.get(global_level, REQUIREMENT_WEIGHTS["required"])
@@ -88,11 +95,14 @@ def _posting_skill_weights(posting: dict, matcher: SkillMatcher) -> dict[str, tu
             if _PREFERRED_CUES.search(stripped) or section_weight == REQUIREMENT_WEIGHTS["preferred"]
             else REQUIREMENT_WEIGHTS["required"]
         )
-        for skill in matcher.match(stripped):
+        for skill in matcher.match(stripped, corroborate=False):
             key = skill.name.casefold()
-            requirement_by_skill[key] = max(requirement_by_skill.get(key, 0.0), line_weight)
+            if key in in_posting:
+                requirement_by_skill[key] = max(requirement_by_skill.get(key, 0.0), line_weight)
 
-    for skill in matcher.match(posting.get("title") or ""):
+    for skill in matcher.match(posting.get("title") or "", corroborate=False):
+        if skill.name.casefold() not in in_posting:
+            continue
         requirement_by_skill[skill.name.casefold()] = max(
             requirement_by_skill.get(skill.name.casefold(), 0.0),
             REQUIREMENT_WEIGHTS["required"],
@@ -125,7 +135,7 @@ def demand_profile(
 
     for posting in postings:
         posting_recency = recency_weight(posting.get("posted_date"), as_of)
-        for key, (skill, requirement_weight) in _posting_skill_weights(posting, matcher).items():
+        for key, (skill, requirement_weight) in posting_skill_weights(posting, matcher).items():
             record = by_skill.setdefault(
                 key,
                 {

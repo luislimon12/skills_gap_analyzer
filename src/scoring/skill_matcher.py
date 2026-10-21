@@ -16,6 +16,12 @@ CSV columns: ``skill_name``, ``category``, ``aliases`` (pipe-delimited) and an
 optional ``case_sensitive_terms`` column (pipe-delimited) for short or
 ambiguous terms such as ``R`` or ``C`` that must match with exact casing and
 stricter boundaries (``R`` must not match inside ``R&D``).
+
+An optional ``ambiguous_terms`` column (pipe-delimited) marks everyday words
+that only mean the skill in the right context: "framing" is Carpentry on a
+job site but not in "framing business questions". An ambiguous term counts
+only when the same text also has an unambiguous match for another skill in
+the same category (another trade skill, for Carpentry).
 """
 
 import csv
@@ -37,6 +43,19 @@ ONET_TAXONOMY_PATH = TAXONOMY_DIR / "onet_skills.csv"
 _STRICT_BEFORE = r"(?<![\w&+#.\-])"
 _STRICT_AFTER = r"(?![\w&+#'\-])"
 
+# O*NET product names and aliases that are everyday English words. Matching
+# them case-insensitively reads "meet deadlines" as Google Meet and "weekly
+# reports" as Oracle Reports, so they are dropped from the O*NET supplement
+# (a skill whose only terms are listed here is dropped altogether).
+GENERIC_ONET_TERMS = frozenset(
+    """
+    ada ant appletree audition bamboo billing blink blogging calibration canu captivate classroom
+    concur deployment distiller domino eiffel eko estimating exchange flex groovy inventor keynote
+    litchi loom maya meet middleware optimization paint pascal recordkeeping reports seesaw
+    simulation slides snort statistical struts tadpoles timekeeping videoconferencing
+    """.split()
+)
+
 
 @dataclass(frozen=True)
 class Skill:
@@ -47,11 +66,14 @@ class Skill:
     aliases: tuple[str, ...] = ()
     case_sensitive_terms: tuple[str, ...] = ()
     source: str = "curated"
+    ambiguous_terms: tuple[str, ...] = ()
 
     @property
     def terms(self) -> tuple[str, ...]:
-        """Every term that identifies this skill (name, aliases, exact-case terms)."""
-        return tuple(dict.fromkeys((self.name, *self.aliases, *self.case_sensitive_terms)))
+        """Every term that identifies this skill (name, aliases, exact-case and ambiguous terms)."""
+        return tuple(
+            dict.fromkeys((self.name, *self.aliases, *self.case_sensitive_terms, *self.ambiguous_terms))
+        )
 
 
 def _split_terms(value: str | None) -> tuple[str, ...]:
@@ -76,7 +98,10 @@ def _read_taxonomy(path: Path, source: str = "curated") -> list[Skill]:
                 alias for alias in _split_terms(row.get("aliases")) if alias not in case_sensitive
             )
             skills.append(
-                Skill(name, clean_text(row.get("category")), aliases, case_sensitive, source)
+                Skill(
+                    name, clean_text(row.get("category")), aliases, case_sensitive, source,
+                    _split_terms(row.get("ambiguous_terms")),
+                )
             )
     return skills
 
@@ -105,6 +130,7 @@ def merge_taxonomies(primary: list[Skill], supplement: list[Skill]) -> list[Skil
                 tuple(dict.fromkeys((*existing.aliases, *skill.aliases))),
                 tuple(dict.fromkeys((*existing.case_sensitive_terms, *skill.case_sensitive_terms))),
                 existing.source,
+                tuple(dict.fromkeys((*existing.ambiguous_terms, *skill.ambiguous_terms))),
             )
         merged[key] = skill
         claim(skill)
@@ -120,6 +146,7 @@ def merge_taxonomies(primary: list[Skill], supplement: list[Skill]) -> list[Skil
                 tuple(dict.fromkeys((*existing.aliases, *free_aliases))),
                 existing.case_sensitive_terms,
                 existing.source,
+                existing.ambiguous_terms,
             )
         elif owners.get(key, key) == key:
             free_exact = tuple(
@@ -145,7 +172,22 @@ def load_taxonomy(path: str | Path | None = None) -> list[Skill]:
     supplement = (
         _read_taxonomy(ONET_TAXONOMY_PATH, source="onet") if ONET_TAXONOMY_PATH.is_file() else []
     )
-    return merge_taxonomies(load_curated(), supplement)
+    return merge_taxonomies(load_curated(), [s for s in map(_without_generic_terms, supplement) if s])
+
+
+def _without_generic_terms(skill: Skill) -> Skill | None:
+    """Drop everyday-word terms (GENERIC_ONET_TERMS) from an O*NET skill; None if nothing is left."""
+    def keep(term: str) -> bool:
+        return term.casefold() not in GENERIC_ONET_TERMS
+
+    aliases = tuple(filter(keep, skill.aliases))
+    exact = tuple(filter(keep, skill.case_sensitive_terms))
+    if keep(skill.name):
+        return Skill(skill.name, skill.category, aliases, exact, skill.source, skill.ambiguous_terms)
+    if not aliases:
+        return None
+    # The name is an everyday word; a specific alias still identifies the skill.
+    return Skill(aliases[0], skill.category, aliases[1:], exact, skill.source, skill.ambiguous_terms)
 
 
 def load_curated() -> list[Skill]:
@@ -177,6 +219,15 @@ def _compile_patterns(skills: list[Skill]) -> list[tuple[Skill, re.Pattern]]:
     return patterns
 
 
+def _ambiguous(skills: list[Skill]) -> frozenset[int]:
+    """Positions in ``_compile_patterns(skills)`` whose term is one of its skill's ambiguous_terms."""
+    terms = [(skill, term) for skill in skills for term in skill.terms]
+    return frozenset(
+        i for i, (skill, term) in enumerate(terms)
+        if term.casefold() in {t.casefold() for t in skill.ambiguous_terms}
+    )
+
+
 _TOKEN = re.compile(r"[a-z0-9]+")
 
 
@@ -188,38 +239,51 @@ def _first_token(term: str) -> str:
 
 def _index_patterns(
     skills: list[Skill], patterns: list[tuple[Skill, re.Pattern]]
-) -> dict[str, list[tuple[Skill, re.Pattern]]]:
+) -> dict[str, list[tuple[int, Skill, re.Pattern]]]:
     """Group patterns by their term's first token.
 
     A term can only match where the text contains that token as a whole
     alphanumeric run, so each text is checked against a handful of
     candidate patterns instead of the whole taxonomy. ``patterns`` must be
-    the output of ``_compile_patterns(skills)`` (one pattern per term, in order).
+    the output of ``_compile_patterns(skills)`` (one pattern per term, in order);
+    each entry keeps its position in that list.
     """
     terms = [term for skill in skills for term in skill.terms]
-    index: dict[str, list[tuple[Skill, re.Pattern]]] = {}
-    for term, item in zip(terms, patterns, strict=True):
-        index.setdefault(_first_token(term), []).append(item)
+    index: dict[str, list[tuple[int, Skill, re.Pattern]]] = {}
+    for position, (term, (skill, pattern)) in enumerate(zip(terms, patterns, strict=True)):
+        index.setdefault(_first_token(term), []).append((position, skill, pattern))
     return index
 
 
 def _matched_skills(
     text: str,
     patterns: list[tuple[Skill, re.Pattern]],
-    index: dict[str, list[tuple[Skill, re.Pattern]]] | None = None,
+    index: dict[str, list[tuple[int, Skill, re.Pattern]]] | None = None,
     order: dict[str, int] | None = None,
+    ambiguous: frozenset[int] = frozenset(),
+    corroborate: bool = True,
 ) -> list[Skill]:
     normalized = clean_text(text)
     if index is None:
-        candidates = patterns
+        candidates = [(i, skill, pattern) for i, (skill, pattern) in enumerate(patterns)]
     else:
         tokens = set(_TOKEN.findall(normalized.lower()))
         candidates = [item for token in tokens & index.keys() for item in index[token]]
-    matches = {
-        skill.name.casefold(): skill
-        for skill, pattern in candidates
-        if pattern.search(normalized)
-    }
+    matches: dict[str, Skill] = {}
+    weak: dict[str, Skill] = {}
+    for position, skill, pattern in candidates:
+        key = skill.name.casefold()
+        if key in matches or not pattern.search(normalized):
+            continue
+        if corroborate and position in ambiguous:
+            weak[key] = skill
+        else:
+            matches[key] = skill
+    # An ambiguous term needs an unambiguous match for another skill of the same category.
+    categories = {skill.category for skill in matches.values() if skill.category}
+    for key, skill in weak.items():
+        if key not in matches and skill.category in categories:
+            matches[key] = skill
     if order is not None:
         return sorted(matches.values(), key=lambda skill: order[skill.name.casefold()])
     return list(matches.values())
@@ -229,14 +293,21 @@ class SkillMatcher:
     """Reusable compiled matcher for scoring multiple postings efficiently."""
 
     def __init__(self, taxonomy_path: str | Path | None = None):
-        self.skills, self.patterns, self._index = _compiled(
+        self.skills, self.patterns, self._index, self._ambiguous = _compiled(
             str(taxonomy_path) if taxonomy_path is not None else None
         )
         self._order = {skill.name.casefold(): i for i, skill in enumerate(self.skills)}
 
-    def match(self, text: str) -> list[Skill]:
-        """Return matched taxonomy entries in their configured order."""
-        return _matched_skills(text, self.patterns, self._index, self._order)
+    def match(self, text: str, corroborate: bool = True) -> list[Skill]:
+        """Return matched taxonomy entries in their configured order.
+
+        With ``corroborate=False`` ambiguous terms count on their own. Use it
+        only on a fragment (one posting line) whose whole text was already
+        matched with corroboration.
+        """
+        return _matched_skills(
+            text, self.patterns, self._index, self._order, self._ambiguous, corroborate
+        )
 
     def mask(self, text: str, replacement: str = " | ") -> str:
         """Return clean text with every taxonomy term occurrence replaced.
@@ -248,7 +319,7 @@ class SkillMatcher:
         spans = [
             match.span()
             for token in tokens & self._index.keys()
-            for _, pattern in self._index[token]
+            for _, _, pattern in self._index[token]
             for match in pattern.finditer(normalized)
         ]
         merged: list[list[int]] = []
@@ -267,7 +338,7 @@ def _compiled(taxonomy_path: str | None):
     """Load and compile a taxonomy once per process (it is read-only)."""
     skills = load_taxonomy(taxonomy_path)
     patterns = _compile_patterns(skills)
-    return skills, patterns, _index_patterns(skills, patterns)
+    return skills, patterns, _index_patterns(skills, patterns), _ambiguous(skills)
 
 
 def match_skills(
@@ -284,9 +355,12 @@ def find_skill_mentions(
 ) -> list[dict]:
     """Return one match per skill with its first evidence text and category."""
     normalized = clean_text(text)
-    patterns = SkillMatcher(taxonomy_path).patterns
+    matcher = SkillMatcher(taxonomy_path)
+    matched = {skill.name.casefold() for skill in matcher.match(normalized)}
     found: dict[str, dict] = {}
-    for skill, pattern in patterns:
+    for skill, pattern in matcher.patterns:
+        if skill.name.casefold() not in matched:
+            continue
         match = pattern.search(normalized)
         if match and skill.name.casefold() not in found:
             found[skill.name.casefold()] = {

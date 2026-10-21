@@ -4,11 +4,17 @@ from datetime import date
 from pathlib import Path
 
 from src.resume.experience_dates import extract_experience_entries, total_months
-from src.resume.extract_sections import extract_sections
+from src.resume.extract_sections import extract_sections, skill_evidence_text
 from src.scoring.demand_scorer import demand_profile
 from src.scoring.fit_scorer import fit_score
 from src.scoring.priority_scorer import priority_score
 from src.scoring.skill_matcher import SkillMatcher
+
+
+def resume_skill_names(resume_text: str, matcher: SkillMatcher | None = None) -> list[str]:
+    """Taxonomy skills the resume shows, ignoring hobbies/interests and references."""
+    matcher = matcher or SkillMatcher()
+    return [skill.name for skill in matcher.match(skill_evidence_text(resume_text))] if resume_text else []
 
 
 def analyze_role(
@@ -25,14 +31,16 @@ def analyze_role(
     """
     as_of = as_of or date.today()
     matcher = SkillMatcher(taxonomy_path)
-    resume_skills = [skill.name for skill in matcher.match(resume_text)]
+    resume_skills = resume_skill_names(resume_text, matcher)
     resume_skill_keys = {skill.casefold() for skill in resume_skills}
 
     sections = extract_sections(resume_text)
     experience_entries = extract_experience_entries(sections["experience"], today=as_of)
     entries_by_skill: dict[str, list[dict]] = {}
     for entry in experience_entries:
-        for skill in matcher.match(entry["text"]):
+        for skill in matcher.match(entry["text"], corroborate=False):
+            if skill.name.casefold() not in resume_skill_keys:
+                continue
             entries_by_skill.setdefault(skill.name, []).append(entry)
     skill_experience_months = {
         skill: total_months(entries) for skill, entries in entries_by_skill.items()
