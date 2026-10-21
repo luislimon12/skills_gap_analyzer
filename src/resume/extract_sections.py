@@ -7,6 +7,9 @@ Experience:", "E X P E R I E N C E"). "Skills: Python, SQL" on one line is
 split into the header and its content. Text before the first header (name,
 contact line) goes to "contact". Unknown headers don't start a new section,
 so their text stays with the section above them.
+
+skill_evidence_text() is the resume text skills should be matched against:
+everything except hobbies/interests and references.
 """
 
 import re
@@ -26,7 +29,14 @@ SECTION_ALIASES = {
                        "certifications and licenses", "courses and certifications"],
     "volunteer": ["volunteer experience", "volunteering", "volunteer work"],
     "awards": ["awards", "honors", "awards and honors", "honors and awards", "achievements"],
+    "interests": ["interests", "hobbies", "hobbies and interests", "interests and hobbies",
+                  "personal interests", "activities", "extracurricular activities", "extracurriculars"],
+    "references": ["references", "references available upon request"],
 }
+
+# Sections that say what someone does for fun or who vouches for them, not what
+# they can do at work: "wood carving" under Hobbies is not a job skill.
+NON_SKILL_SECTIONS = ("interests", "references")
 
 SECTION_KEYS = ["contact", *SECTION_ALIASES]
 
@@ -78,3 +88,11 @@ def extract_sections(resume_text: str) -> dict:
             continue
         lines_by_section[current].append(line)
     return {key: "\n".join(lines).strip() for key, lines in lines_by_section.items()}
+
+
+def skill_evidence_text(resume_text: str) -> str:
+    """Resume text without the sections that are not evidence of job skills."""
+    sections = extract_sections(resume_text)
+    return "\n\n".join(
+        sections[key] for key in SECTION_KEYS if key not in NON_SKILL_SECTIONS and sections[key]
+    )

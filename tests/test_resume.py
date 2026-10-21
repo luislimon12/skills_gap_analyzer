@@ -159,3 +159,23 @@ def test_total_months_merges_overlapping_jobs():
         {"start": "2024-01", "end": "2024-02"},   # separate, +2
     ]
     assert total_months(entries) == 17
+
+
+def test_parse_plain_text_resume_from_path_and_upload(tmp_path):
+    body = "Jordan Lee\n\nSKILLS\nPython, SQL, Tableau and Power BI dashboards for finance teams."
+    path = tmp_path / "resume.txt"
+    path.write_text(body, encoding="utf-8")
+    assert "Power BI" in parse_resume(path)
+    upload = io.BytesIO(body.encode("cp1252"))
+    upload.name = "resume.txt"
+    assert parse_resume(upload).startswith("Jordan Lee")
+
+
+def test_skill_evidence_text_drops_interests_and_references():
+    from src.resume.extract_sections import skill_evidence_text
+
+    text = "SKILLS\nPython\n\nHOBBIES & INTERESTS\nWood carving\n\nREFERENCES\nAvailable on request\n"
+    sections = extract_sections(text)
+    assert sections["interests"] == "Wood carving"
+    evidence = skill_evidence_text(text)
+    assert "Python" in evidence and "carving" not in evidence and "request" not in evidence

@@ -34,7 +34,7 @@ details and remaining work.
 flowchart LR
     A[Job Posting APIs<br/>Adzuna · Greenhouse · Lever]
     B[Resume Upload<br/>PDF / DOCX]
-    TAX[Skill Taxonomy<br/>Lightcast + O*NET]
+    TAX[Skill Taxonomy<br/>Curated + O*NET]
     C[Postings Fetcher + Dedup<br/>Role 1]
     D[Resume Parser<br/>Role 2]
     E[Postings Store: SQLite<br/>Role 1]
@@ -86,7 +86,7 @@ write or find specifc code. for reading pdf, word, google docs.
 | Adzuna API                   | Aggregated postings, Canada coverage | Free (~1,000 calls/mo)     |
 | Greenhouse Job Board API     | Full posting text, per named company | Free, no key               |
 | Lever Postings API           | Full posting text, per named company | Free, no key               |
-| Lightcast Open Skills        | 35k+ skill taxonomy                  | Free (register)            |
+| O*NET Technology Skills      | Occupation tool/software lists       | Free download (CC BY 4.0)  |
 | O\*NET                       | Occupation - skill baseline          | Free                       |
 | Kaggle resume datasets       | Dev/test resumes                     | Free                       |
 | JSearch (RapidAPI)  optional | Backup aggregator                    | Free tier, then ~$10-19/mo |
@@ -127,7 +127,7 @@ $$\text{FitScore} = \frac{\vec{r} \cdot \vec{d}}{\|\vec{r}\|\,\|\vec{d}\|} \;\ri
 | Frontend | [Streamlit](https://github.com/streamlit/streamlit) |
 
 > [!tip]+ Key technique: Data storage
-> One SQLite database, three tables: `postings` (deduped, Role 1), `resumes` (parsed skill sets, Role 2), `skills` (cached Lightcast taxonomy so the matcher isn't hitting the API every request). Single file, whole team can share it. ==Upgrade to Postgres if it need scaling and some one wants to suffer==
+> One SQLite database, three tables: `postings` (deduped, Role 1), `resumes` (parsed skill sets, Role 2), `market_snapshots` (Adzuna live count and mean salary per role); the skill taxonomy is checked-in CSV (curated + O*NET). Single file, whole team can share it. ==Upgrade to Postgres if it need scaling and some one wants to suffer==
 
 ## Team of 4
 
@@ -167,8 +167,9 @@ Checkpoints: end of week 2 (clean data from Roles 1–2), end of week 4 (full pi
   direct Docs integration is outside the prototype.
 - **Case normalization:** matching is case-insensitive; capitalization is not
   treated as evidence of skill level.
-- **Production data:** the Lightcast and O*NET CSVs are not populated. Download,
-  validate, and license-check a fuller taxonomy before using this for students.
+- **Production data:** Lightcast was replaced by a curated taxonomy plus O*NET 30.0
+  Technology Skills (CC BY 4.0, regenerate with `python -m src.scoring.taxonomy.setup_taxonomy`).
+  Keep reviewing aliases against real postings before using this for students.
 - **Real-world validation:** test real postings across companies/roles, check
   false positives and false negatives, inspect Adzuna excerpt effects, and add
   privacy-safe resume evaluation cases.

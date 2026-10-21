@@ -97,9 +97,9 @@ def test_matcher_is_case_insensitive_boundary_aware_and_uses_aliases():
 
 
 def test_matcher_reports_useful_evidence():
-    mentions = find_skill_mentions("Built dashboards with Tableau.")
-    assert [mention["skill"] for mention in mentions] == ["Tableau"]
-    assert "Tableau" in mentions[0]["evidence"]
+    mentions = {m["skill"]: m for m in find_skill_mentions("Built dashboards with Tableau.")}
+    assert set(mentions) == {"Tableau", "Dashboards"}
+    assert "Tableau" in mentions["Tableau"]["evidence"]
 
 
 def test_recency_weights_and_unknown_date_fallback():
@@ -158,7 +158,7 @@ def test_end_to_end_analysis_returns_gaps_fit_and_experience_evidence():
     skills = {row["skill"]: row for row in analysis["skills"]}
 
     assert analysis["postings_count"] == 3
-    assert analysis["resume_skills"] == ["Python", "SQL"]
+    assert analysis["resume_skills"] == ["Python", "SQL", "Data Pipelines"]
     assert 0 < analysis["fit_score"] < 100
     assert skills["Python"]["has_skill"] is True
     assert skills["Python"]["gap_score"] == 0.0
@@ -184,3 +184,40 @@ def test_tfidf_similarity_ranks_relevant_postings_and_keyword_search_is_bounded(
     assert results[0]["similarity"] > results[1]["similarity"]
     assert results[0]["keyword_matches"] == ["Python"]
     assert results[1]["keyword_matches"] == ["JavaScript"]
+
+
+def test_rank_postings_by_skills_prefers_postings_centred_on_chosen_skills():
+    from src.scoring.job_search import rank_postings_by_skills
+
+    postings = [
+        {"title": "Opening 1", "full_text": "Requirements:\nPython and SQL."},
+        {"title": "Opening 2", "full_text": "Requirements:\nPython, Java, Kubernetes, Docker and AWS."},
+        {"title": "Opening 3", "full_text": "Requirements:\nTableau.\nNice to have:\nSQL."},
+        {"title": "Opening 4", "full_text": "Requirements:\nJava."},
+    ]
+    ranked = rank_postings_by_skills(postings, ["Python", "SQL"])
+    assert [row["posting"]["title"] for row in ranked] == ["Opening 1", "Opening 3", "Opening 2"]  # 4 asks for none; 3 and 2 tie, coverage breaks it
+    assert ranked[0]["match"] == pytest.approx(1.0)
+    assert ranked[0]["matched"] == ["Python", "SQL"]
+    assert "Java" in ranked[2]["missing"]
+    assert ranked[1]["coverage"] == pytest.approx(0.5 / 1.5)
+    assert rank_postings_by_skills(postings, []) == []
+
+
+def test_rank_postings_modes_only_and_mostly():
+    from src.scoring.job_search import rank_postings_by_skills
+
+    postings = [
+        {"title": "Opening 1", "full_text": "Requirements:\nPython and SQL."},                   # only picked skills
+        {"title": "Opening 2", "full_text": "Requirements:\nPython, SQL and Tableau."},         # 2/3 of weight
+        {"title": "Opening 3", "full_text": "Requirements:\nPython, Java, Docker and AWS."},    # 1/4 of weight
+        {"title": "Opening 4", "full_text": "Requirements:\nPython.\nNice to have:\nJava."},  # 1.0 of 1.5
+    ]
+    titles = lambda rows: [row["posting"]["title"] for row in rows]  # noqa: E731
+    assert titles(rank_postings_by_skills(postings, ["Python", "SQL"], mode="only")) == ["Opening 1"]
+    assert titles(rank_postings_by_skills(postings, ["Python", "SQL"], mode="mostly")) == [
+        "Opening 1", "Opening 2", "Opening 4",
+    ]
+    assert len(rank_postings_by_skills(postings, ["Python", "SQL"], mode="any")) == 4
+    with pytest.raises(ValueError):
+        rank_postings_by_skills(postings, ["Python"], mode="all")

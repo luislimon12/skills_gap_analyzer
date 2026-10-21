@@ -1,0 +1,442 @@
+skill_name,category,aliases,case_sensitive_terms,onet_commodity_code
+1CadCam Unigraphics,Computer aided manufacturing CAM,,,43232612
+3M Post-it App,Word processing,,,43232104
+Ab Initio,Enterprise resource planning ERP,,,43231602
+ABAP,Object or component oriented development,Advanced business application programming|Advanced business application programming ABAP,ABAP,43232405
+ACD Systems Canvas,Graphics or photo imaging,,,43232102
+Act!,Customer relationship management CRM,,,43232303
+Ada,Development environment,,,43232402
+ADO.NET,Database management system,,,43232304
+Adobe Acrobat,Document management,,,43232202
+Adobe Acrobat Reader,Document management,Acrobat Reader,,43232202
+Adobe ActionScript,Development environment,ActionScript,,43232402
+Adobe After Effects,Video creation and editing,After Effects,,43232103
+Adobe Audition,Music or sound editing,Audition,,43232005
+Adobe Captivate,Computer based training,Captivate,,43232502
+Adobe ColdFusion,Web platform development,ColdFusion,,43232408
+Adobe Director,Video creation and editing,,,43232103
+Adobe Distiller,Desktop publishing,Distiller,,43232112
+Adobe Dreamweaver,Web page creation and editing,Dreamweaver,,43232107
+Adobe Flex,Web platform development,Flex,,43232408
+Adobe FrameMaker,Desktop publishing,FrameMaker,,43232112
+Adobe FreeHand MX,Graphics or photo imaging,FreeHand MX,,43232102
+Adobe Illustrator,Graphics or photo imaging,,,43232102
+Adobe InDesign,Desktop publishing,InDesign,,43232112
+Adobe PageMaker,Desktop publishing,PageMaker,,43232112
+Adobe Photoshop,Graphics or photo imaging,Photoshop,,43232102
+Adobe Premiere Pro,Video creation and editing,Premiere Pro,,43232103
+ADP Enterprise HR,Human resources,,,43231505
+Airtable,Database user interface and query,,,43232306
+AJAX,Web platform development,,AJAX,43232408
+Allscripts PM,Medical,,,43232610
+Allscripts Professional EHR,Medical,,,43232610
+Amkai AmkaiCharts,Medical,,,43232610
+Analyse-it,Analytical or scientific,,,43232605
+Ansys Fluent,Analytical or scientific,,,43232605
+Apache Ant,Development environment,Ant,,43232402
+Apache Flume,Database management system,Flume,,43232304
+Apache Groovy,Object or component oriented development,Groovy,,43232405
+Apache HBase,Database management system,HBase,,43232304
+Apache HTTP Server,Portal server,HTTP Server,,43232312
+Apache Maven,Development environment,Maven,,43232402
+Apache Pig,Database management system,,,43232304
+Apache Solr,Database management system,Solr,,43232304
+Apache Struts,Web platform development,Struts,,43232408
+Apache Subversion,File versioning,SVN|Subversion|Apache Subversion SVN,SVN,43232203
+Apache Tomcat,Web platform development,Tomcat,,43232408
+Apple Final Cut Pro,Video creation and editing,Final Cut Pro,,43232103
+Apple iMovie,Video creation and editing,iMovie,,43232103
+Apple iWork Keynote,Presentation,iWork Keynote,,43232106
+Apple iWork Pages,Word processing,iWork Pages,,43232104
+Apple Keynote,Presentation,Keynote,,43232106
+Apple macOS,Operating system,macOS,,43233004
+Appletree,Computer based training,,,43232502
+Aptech Systems GAUSS,Analytical or scientific,,,43232605
+Asana,Cloud-based data access and sharing,,,43233513
+athenahealth athenaCollector,Medical,,,43232610
+Atlassian Bamboo,Enterprise application integration,Bamboo,,43232403
+Audacity,Music or sound editing,,,43232005
+Autodesk 3ds Max,Video creation and editing,3ds Max,,43232103
+Autodesk 3ds Max Design,Computer aided design CAD,3ds Max Design,,43232604
+Autodesk Inventor,Computer aided design CAD,Inventor,,43232604
+Autodesk Land Desktop,Computer aided design CAD,Land Desktop,,43232604
+Autodesk Maya,Graphics or photo imaging,Maya,,43232102
+AutoDesSys form Z,Computer aided design CAD,,,43232604
+Automatic Data Processing AdvancedMD EHR,Medical,,,43232610
+AVEVA InTouch HMI,Industrial control,,,43232608
+Avid Technology audio visual editing,Video creation and editing,Avid Technology audio visual editing software,,43232103
+Avid Technology Media Composer,Video creation and editing,,,43232103
+Avid Technology Pro Tools,Music or sound editing,,,43232005
+AWS CloudFormation,Cloud-based management,CloudFormation|Amazon Web Services AWS CloudFormation,,43232806
+Backbone.js,Web platform development,,,43232408
+Basic Local Alignment Search Tool,Analytical or scientific,BLAST|Basic Local Alignment Search Tool BLAST,BLAST,43232605
+Bentley MicroStation,Computer aided design CAD,MicroStation,,43232604
+Bentley Systems InRoads Suite,Map creation,Systems InRoads Suite,,43233506
+Billing,Accounting,Billing software,,43231601
+Bizmatics PrognoCIS EMR,Medical,,,43232610
+Blackbaud The Raiser's Edge,Customer relationship management CRM,,,43232303
+Blackboard,Database user interface and query,Blackboard software,,43232306
+Blackboard Learn,Computer based training,,,43232502
+Blink,Instant messaging,,,43233504
+Blogging,Web page creation and editing,Blogging software,,43232107
+Bloomz,Desktop communications,,,43232702
+Border Gateway Protocol,Switch or router,BGP|Border Gateway Protocol BGP,BGP,43232908
+CAD,Computer aided design CAD,Computer aided design|Computer aided design CAD software,CAD,43232604
+CADD,Computer aided design CAD,Computer aided design and drafting software|Computer aided design and drafting software CADD|Computer aided design and drafting|Computer aided design and drafting CADD software,CADD,43232604
+Cadence PSpice,Analytical or scientific,,,43232605
+Calibration,Analytical or scientific,Calibration software,,43232605
+CAM,Computer aided manufacturing CAM,Computer aided manufacturing|Computer aided manufacturing CAM software,CAM,43232612
+Canu,Development environment,,,43232402
+Canva,Graphics or photo imaging,,,43232102
+CareCloud Central,Medical,,,43232610
+Cerner Millennium,Medical,,,43232610
+Cerner PowerWorks Practice Management,Medical,,,43232610
+CFD,Analytical or scientific,Computational fluid dynamics|Computational fluid dynamics CFD software,CFD,43232605
+ChartWare EMR,Medical,,,43232610
+CICS,Transaction server,Customer information control system|Customer information control system CICS,CICS,43232313
+Cisco IOS,Operating system,IOS,IOS,43233004
+Cisco Systems CiscoWorks,Administration,Systems CiscoWorks,,43232804
+ClassDojo,Desktop communications,,,43232702
+ClustalW,Analytical or scientific,,,43232605
+CMMS,Facilities management,Computerized maintenance management system|Computerized maintenance management system CMMS,CMMS,43232603
+CMS,Web page creation and editing,Content management systems|Content management systems CMS|Web content management system|Web content management system CMS software,CMS,43232107
+CNC Mastercam,Computer aided manufacturing CAM,,,43232612
+COBOL,Development environment,Common business oriented language|Common business oriented language COBOL,COBOL,43232402
+Common Curriculum,Computer based training,,,43232502
+Construction Management Software ProEst,Analytical or scientific,,,43232605
+Construction Software Center EasyEst,Project management,,,43231507
+Corel CorelDraw Graphics Suite,Graphics or photo imaging,,,43232102
+Corel Paint Shop Pro,Graphics or photo imaging,,,43232102
+Corel Painter,Graphics or photo imaging,,,43232102
+Corel QuattroPro,Spreadsheet,,,43232110
+Corel WordPerfect Office Suite,Office suite,,,43231513
+CPR Visual Estimator,Financial analysis,,,43231604
+Dassault Systemes Abaqus,Analytical or scientific,Abaqus,,43232605
+Dassault Systemes CATIA,Computer aided design CAD,CATIA,CATIA,43232604
+dBASE,Database user interface and query,,,43232306
+DCS,Industrial control,Distributed control system|Distributed control system DCS,DCS,43232608
+DDL,Database management system,Data definition language|Data definition language DDL,DDL,43232304
+Debugging,Program testing,Debugging software,,43232406
+Delcam PowerMILL,Computer aided manufacturing CAM,,,43232612
+Delphi Technology,Financial analysis,,,43231604
+Deployment,Configuration management,Deployment software,,43232401
+DesignWare 3D EyeWitness,Graphics or photo imaging,,,43232102
+Desire2Learn LMS,Computer based training,Desire2Learn LMS software,,43232502
+Desmos,Analytical or scientific,,,43232605
+DHTML,Web platform development,Dynamic hypertext markup language|Dynamic hypertext markup language DHTML,DHTML,43232408
+DML,Database management system,Data manipulation language|Data manipulation language DML,DML,43232304
+DOC Cop,Information retrieval or search,,,43232309
+Dropbox,Cloud-based data access and sharing,,,43233513
+Drupal,Web platform development,,,43232408
+e-MDs,Medical,e-MDs software,,43232610
+EAI,Enterprise application integration,Enterprise application integration|Enterprise application integration EAI software,EAI,43232403
+EasyCBM,Computer based training,,,43232502
+eClinicalWorks EHR,Medical,eClinicalWorks EHR software,,43232610
+Eclipse Jersey,Web platform development,,,43232408
+Econometric Software LIMDEP,Analytical or scientific,,,43232605
+EDA,Computer aided design CAD,Electronic design automation|Electronic design automation EDA software,EDA,43232604
+EDI,Electronic mail,Electronic data interchange|Electronic data interchange EDI software,EDI,43233501
+Edmodo,Desktop communications,,,43232702
+Edpuzzle,Multi-media educational,,,43232505
+Eiffel,Object or component oriented development,,,43232405
+Eko,Desktop communications,,,43232702
+Embarcadero Delphi,Object or component oriented development,,,43232405
+Encryption,Transaction security and virus protection,Encryption software,,43233205
+Enterprise JavaBeans,Web platform development,,,43232408
+Epic Practice Management,Medical,,,43232610
+Epic Systems,Medical,,,43232610
+Epicor Vantage ERP,Enterprise resource planning ERP,,,43231602
+Epocrates,Medical,,,43232610
+ESRI,Geographic information system,ESRI software,ESRI,43232510
+ESRI ArcGIS Spatial Analyst,Geographic information system,ArcGIS Spatial Analyst,,43232510
+ESRI ArcIMS,Geographic information system,ArcIMS,,43232510
+ESRI ArcInfo,Geographic information system,ArcInfo,,43232510
+ESRI ArcPad,Geographic information system,ArcPad,,43232510
+ESRI ArcView,Geographic information system,ArcView,,43232510
+ESRI ArcView 3D Analyst,Geographic information system,ArcView 3D Analyst,,43232510
+Estimating,Project management,Estimating software,,43231507
+Evernote,Word processing,,,43232104
+Ext JS,Web platform development,,,43232408
+FaceTime,Video conferencing,,,43233502
+FEA,Analytical or scientific,Finite element analysis|Finite element analysis FEA software,FEA,43232605
+FEM,Analytical or scientific,Finite element method|Finite element method FEM software,FEM,43232605
+Field programmable gate array FPGA design,Computer aided design CAD,Field programmable gate array FPGA design software,,43232604
+Figma,Graphical user interface development,,,43232404
+FileMaker Pro,Database user interface and query,,,43232306
+Firewall,Network security and virtual private network VPN equipment,Firewall software,,43233204
+Flipgrid,Video creation and editing,,,43232103
+FMEA,Analytical or scientific,Failure mode and effects analysis|Failure mode and effects analysis FMEA software,FMEA,43232605
+FORTRAN,Development environment,Formula translation/translator|Formula translation/translator FORTRAN,,43232402
+G-code,Object or component oriented development,,,43232405
+GalacTek ECLIPSE,Medical,,,43232610
+GDA,Map creation,Geomechanical design analysis|Geomechanical design analysis GDA software,GDA,43233506
+GE Healthcare Centricity EMR,Medical,,,43232610
+GE Healthcare Centricity Practice Solution,Medical,,,43232610
+Geographic information system GIS systems,Geographic information system,,,43232510
+GNU Image Manipulation Program,Graphics or photo imaging,GIMP|GNU Image Manipulation Program GIMP,GIMP,43232102
+Golden Software Surfer,Map creation,,,43233506
+Google Classroom,Project management,Classroom,,43231507
+Google Earth Pro,Geographic information system,Earth Pro,,43232510
+Google Gmail,Electronic mail,Gmail,,43233501
+Google Meet,Video conferencing,Meet,,43233502
+Google Sites,Web page creation and editing,,,43232107
+Google Slides,Presentation,Slides,,43232106
+GPS,Mobile location based services,Global positioning system|Global positioning system GPS software,GPS,43233511
+Graphical user interface GUI design,Graphical user interface development,Graphical user interface GUI design software,,43232404
+GRASS,Map creation,Geographic resources analysis support system|Geographic resources analysis support system GRASS,GRASS,43233506
+Greenway Medical Technologies PrimeSUITE,Medical,,,43232610
+GroupMe,Instant messaging,,,43233504
+HCPCS,Medical,Healthcare common procedure coding system|Healthcare common procedure coding system HCPCS,HCPCS,43232610
+HCSS HeavyBid,Project management,,,43231507
+HCSS HeavyJob,Project management,,,43231507
+HealthFusion MediTouch,Medical,,,43232610
+HEAT Software GoldMine,Customer relationship management CRM,,,43232303
+HEC-RAS,Analytical or scientific,,,43232605
+Henry Schein Dentrix,Medical,,,43232610
+Hewlett Packard HP-UX,Operating system,,,43233004
+Hewlett Packard LoadRunner,Program testing,,,43232406
+Hibernate ORM,Object oriented data base management,,,43232311
+HMI,Industrial control,Human machine interface|Human machine interface HMI software,HMI,43232608
+HMS,Medical,,HMS,43232610
+HRMS,Human resources,Human resource management software|Human resource management software HRMS|Human resources management system|Human resources management system HRMS,HRMS,43231505
+Human resource information system (HRIS),Human resources,,,43231505
+Hypertext preprocessor PHP,Web platform development,,,43232408
+IBM AIX,Operating system,AIX,AIX,43233004
+IBM Cognos Impromptu,Business intelligence and data analysis,Cognos Impromptu,,43232314
+IBM Domino,Communications server,Domino,,43232902
+IBM Informix,Object oriented data base management,Informix,,43232311
+IBM InfoSphere DataStage,Enterprise application integration,InfoSphere DataStage,,43232403
+IBM Lotus 1-2-3,Spreadsheet,Lotus 1-2-3,,43232110
+IBM Lotus Notes,Electronic mail,Lotus Notes,,43233501
+IBM Maximo Asset Management,Enterprise resource planning ERP,Maximo Asset Management,,43231602
+IBM Middleware,Transaction server,Middleware,,43232313
+IBM Notes,Electronic mail,,,43233501
+IBM Power Systems,Enterprise system management,Power Systems|IBM Power Systems software,,43233701
+IBM Rational ClearCase,Configuration management,Rational ClearCase,,43232401
+IBM Rational ClearQuest,Development environment,Rational ClearQuest,,43232402
+IBM Rational RequisitePro,Requirements analysis and system architecture,Rational RequisitePro,,43232407
+IBM Rational Rose XDE,Development environment,Rational Rose XDE,,43232402
+IBM WebSphere,Cloud-based management,WebSphere,,43232806
+IBM WebSphere MQ,Cloud-based management,WebSphere MQ,,43232806
+IDL,Development environment,Interface definition language|Interface definition language IDL,IDL,43232402
+Infor ERP SyteLine,Enterprise resource planning ERP,,,43231602
+Insight Direct ServiceCEO,Database user interface and query,,,43232306
+Insightful S-PLUS,Analytical or scientific,,,43232605
+Integrated Automated Fingerprint Identification System,Database user interface and query,IAFIS|Integrated Automated Fingerprint Identification System IAFIS,IAFIS,43232306
+Intrado SchoolMessenger,Mobile messaging service,,,43233509
+Intuit QuickBooks Point of Sale,Point of sale POS,QuickBooks Point of Sale,,43232611
+IOS Health Systems Medios EHR,Medical,,,43232610
+iParadigms Turnitin,Information retrieval or search,,,43232309
+IPS,Network security or virtual private network VPN management,Intrusion prevention system|Intrusion prevention system IPS,IPS,43233203
+JamBoard,Graphics or photo imaging,,,43232102
+JCL,Operating system,Job control language|Job control language JCL,JCL,43233004
+Kahoot!,Multi-media educational,,,43232505
+Kapwing,Video creation and editing,,,43232103
+Kareo Practice Management,Medical,,,43232610
+KornShell,Operating system,,,43233004
+Kronos Workforce Timekeeper,Time accounting,,,43231605
+LAMP Stack,Web platform development,,,43232408
+LAN,LAN,Local area network|Local area network LAN software,LAN,43232905
+Leica Geosystems ERDAS IMAGINE,Map creation,,,43233506
+LexisNexis,Information retrieval or search,,,43232309
+LIMS,Analytical or scientific,Laboratory information management system|Laboratory information management system LIMS,LIMS,43232605
+LIS,Medical,Laboratory information system|Laboratory information system LIS,LIS,43232610
+LISP,Development environment,List processing language|List processing language LISP,LISP,43232402
+Litchi,Analytical or scientific,,,43232605
+LMS,Computer based training,Learning management system|Learning management system LMS,LMS,43232502
+LogMeIn GoToMeeting,Video conferencing,,,43233502
+LogMeIn GoToWebinar,Network conferencing,,,43233503
+Loom,Video creation and editing,,,43232103
+Magellan Firmware,Operating system,,,43233004
+MapInfo,Map creation,,,43233506
+Maplesoft Maple,Analytical or scientific,,,43232605
+Marketo Marketing Automation,Sales and marketing,,,43231514
+Mathsoft Mathcad,Analytical or scientific,,,43232605
+MathWorks Simulink,Analytical or scientific,,,43232605
+Maxon Cinema 4D,Video creation and editing,,,43232103
+MAYA Nastran,Analytical or scientific,,,43232605
+McAfee,Transaction security and virus protection,,,43233205
+McKesson Practice Plus,Medical,,,43232610
+McNeel Rhinoceros 3D,Graphics or photo imaging,,,43232102
+MEDITECH,Medical,MEDITECH software,,43232610
+Medscribbler Enterprise,Medical,,,43232610
+Mentimeter,Presentation,,,43232106
+MicroFocus GroupWise,Electronic mail,,,43233501
+MicroFour PracticeStudio.NET EMR,Medical,,,43232610
+Microsoft Active Directory,Internet directory services,Active Directory,,43232704
+Microsoft Active Server Pages,Web platform development,ASP|Active Server Pages|Microsoft Active Server Pages ASP,ASP,43232408
+Microsoft ActiveX,Object or component oriented development,ActiveX,,43232405
+Microsoft ASP.NET Core MVC,Web platform development,ASP.NET Core MVC,,43232408
+Microsoft Dynamics,Enterprise resource planning ERP,,,43231602
+Microsoft Dynamics AX,Enterprise resource planning ERP,Dynamics AX,,43231602
+Microsoft Dynamics GP,Enterprise resource planning ERP,Dynamics GP,,43231602
+Microsoft Exchange,Electronic mail,Exchange,,43233501
+Microsoft FrontPage,Web page creation and editing,FrontPage,,43232107
+Microsoft Internet Information Services (IIS),Transaction server,Internet Information Services (IIS),,43232313
+Microsoft OneNote,Word processing,OneNote,,43232104
+Microsoft Paint,Graphics or photo imaging,Paint,,43232102
+Microsoft Publisher,Desktop publishing,,,43232112
+Microsoft SharePoint Server,Document management,SharePoint Server,,43232202
+Microsoft Team Foundation Server,Project management,Team Foundation Server,,43231507
+Microsoft Visual Basic,Development environment,Visual Basic,,43232402
+Microsoft Visual Basic Scripting Edition VBScript,Development environment,Visual Basic Scripting Edition VBScript,,43232402
+Microsoft Visual Basic.NET,Object or component oriented development,Visual Basic.NET,,43232405
+Microsoft Visual C# .NET,Object or component oriented development,Visual C# .NET,,43232405
+Microsoft Visual FoxPro,Object oriented data base management,Visual FoxPro,,43232311
+Microsoft Windows,Operating system,,,43233004
+Minitab,Analytical or scientific,,,43232605
+MIS,Enterprise resource planning ERP,Management information systems|Management information systems MIS,MIS,43231602
+Modernizing Medicine Practice Management,Medical,,,43232610
+Monte Carlo simulation,Financial analysis,Monte Carlo simulation software,,43231604
+Moodle,Computer based training,,,43232502
+MRP,Materials requirements planning logistics and supply chain,Materials requirement planning|Materials requirement planning MRP software,MRP,43231506
+MSDS,Compliance,Material safety data sheet|Material safety data sheet MSDS software,MSDS,43232606
+MUMPS M,Development environment,,,43232402
+Nagios,Network monitoring,,,43232801
+National Crime Information Center (NCIC) database,Database user interface and query,,,43232306
+National Instruments LabVIEW,Development environment,,,43232402
+National Integrated Ballistics Information Network,Database user interface and query,NIBIN|National Integrated Ballistics Information Network NIBIN,NIBIN,43232306
+Nearpod,Multi-media educational,,,43232505
+Netscape Navigator,Internet browser,,,43232705
+NetSuite ERP,Enterprise resource planning ERP,,,43231602
+NextGen Healthcare Information Systems EMR,Medical,,,43232610
+NextGen Healthcare NextGen Practice Management,Medical,,,43232610
+NIPS,Network monitoring,Network intrusion prevention systems|Network intrusion prevention systems NIPS,NIPS,43232801
+Nuance Dragon NaturallySpeaking,Voice recognition,,,43233413
+Objective C,Object or component oriented development,,,43232405
+OCR,Optical character reader OCR or scanning,Optical character recognition|Optical character recognition OCR software,OCR,43232111
+On Center Quick Bid,Project management,,,43231507
+OpenAI ChatGPT,Development environment,,,43232402
+Operational Data Store,Database user interface and query,ODS|Operational Data Store ODS software,ODS,43232306
+Optimization,Analytical or scientific,Optimization software,,43232605
+Oracle Application Server,Application server,Application Server,,43232701
+Oracle Business Intelligence Discoverer,Database reporting,Business Intelligence Discoverer,,43232305
+Oracle Business Intelligence Enterprise Edition,Business intelligence and data analysis,Business Intelligence Enterprise Edition,,43232314
+Oracle Cloud,Cloud-based management,Oracle Cloud software,,43232806
+Oracle E-Business Suite Financials,Financial analysis,E-Business Suite Financials,,43231604
+Oracle Eloqua,Customer relationship management CRM,Eloqua,,43232303
+Oracle Fusion Applications,Enterprise resource planning ERP,Fusion Applications,,43231602
+Oracle Fusion Middleware,Enterprise application integration,Fusion Middleware,,43232403
+Oracle Hyperion,Enterprise resource planning ERP,Hyperion,,43231602
+Oracle JavaServer Pages,Web platform development,JSP|JavaServer Pages|Oracle JavaServer Pages JSP,JSP,43232408
+Oracle JD Edwards EnterpriseOne,Enterprise resource planning ERP,JD Edwards EnterpriseOne,,43231602
+Oracle JDBC,Database user interface and query,JDBC,JDBC,43232306
+Oracle PeopleSoft,Enterprise resource planning ERP,PeopleSoft,,43231602
+Oracle PeopleSoft Financials,Enterprise resource planning ERP,PeopleSoft Financials,,43231602
+Oracle Primavera Enterprise Project Portfolio Management,Project management,Primavera Enterprise Project Portfolio Management,,43231507
+Oracle Primavera Systems,Project management,Primavera Systems,,43231507
+Oracle Reports,Database reporting,Reports,,43232305
+Oracle Siebel Server Sync,Customer relationship management CRM,Siebel Server Sync,,43232303
+Oracle Solaris,Operating system,Solaris,,43233004
+Oracle SQL Developer,Development environment,SQL Developer,,43232402
+Oracle Taleo,Human resources,Taleo,,43231505
+Oracle WebLogic Server,Application server,WebLogic Server,,43232701
+OrCAD Capture,Computer aided design CAD,,,43232604
+Padlet,Computer based training,,,43232502
+ParentSquare,Desktop communications,,,43232702
+Pascal,Development environment,,,43232402
+Patterson Dental Supply Patterson EagleSoft,Medical,,,43232610
+PCC EHR,Medical,,,43232610
+PCC Pediatric Partner,Medical,,,43232610
+Pear Deck,Presentation,,,43232106
+Perforce Helix,Configuration management,Perforce Helix software,,43232401
+Pinterest,Information retrieval or search,,,43232309
+Platform as a service PaaS,Cloud-based data access and sharing,,,43233513
+PMS,Database user interface and query,Practice management software|Practice management software PMS,PMS,43232306
+Poll Everywhere,Presentation,,,43232106
+Procore,Analytical or scientific,Procore software,,43232605
+Prognosis Innovation Healthcare ChartAccess,Medical,,,43232610
+Prolog,Development environment,,,43232402
+PTC Creo Parametric,Computer aided design CAD,,,43232604
+Pyxis MedStation,Inventory management,Pyxis MedStation software,,43231508
+Qlik Tech QlikView,Business intelligence and data analysis,,,43232314
+QuarkXPress,Desktop publishing,,,43232112
+Quest Erwin Data Modeler,Metadata management,,,43232310
+Quicken,Accounting,,,43231601
+Quizlet,Computer based training,,,43232502
+Recordkeeping,Database user interface and query,Recordkeeping software,,43232306
+Red Hat OpenShift,Application server,OpenShift,,43232701
+Red Hat WildFly,Application server,WildFly,,43232701
+REXX,Development environment,Restructured extended executor|Restructured extended executor REXX,REXX,43232402
+RockWare ArcMap,Map creation,,,43233506
+Rockwell Automation Arena,Analytical or scientific,,,43232605
+Rockwell RSLogix,Program testing,,,43232406
+RTOS,Operating system,Real time operating system|Real time operating system RTOS software,RTOS,43233004
+Sage 300 Construction and Real Estate,Database user interface and query,,,43232306
+Sage 50 Accounting,Accounting,,,43231601
+Sage ERP Accpac,Enterprise resource planning ERP,,,43231602
+Sage HRMS,Human resources,,,43231505
+Sage MAS 200 ERP,Enterprise resource planning ERP,,,43231602
+Sakai CLE,Computer based training,,,43232502
+Salesforce Visualforce,Graphical user interface development,,,43232404
+Salesforce.com Salesforce CRM,Customer relationship management CRM,,,43232303
+SAML,Web platform development,Security assertion markup language|Security assertion markup language SAML,SAML,43232408
+SAN,Storage networking,Storage area network|Storage area network SAN software,SAN,43232907
+SAP Adaptive Server Enterprise,Database management system,Adaptive Server Enterprise,,43232304
+SAP Business Objects,Enterprise resource planning ERP,Business Objects,,43231602
+SAP BusinessObjects Crystal Reports,Database reporting,BusinessObjects Crystal Reports,,43232305
+SAP BusinessObjects Data Integrator,Enterprise application integration,BusinessObjects Data Integrator,,43232403
+SAP Concur,Accounting,Concur,,43231601
+SAP Crystal Reports,Database reporting,Crystal Reports,,43232305
+SAP PowerBuilder,Object or component oriented development,PowerBuilder,,43232405
+SAS JMP,Analytical or scientific,,,43232605
+SCADA,Industrial control,Supervisory control and data acquisition|Supervisory control and data acquisition SCADA software,SCADA,43232608
+Schoology,Computer based training,,,43232502
+Screencast-O-Matic,Video creation and editing,,,43232103
+Screencastify,Video creation and editing,,,43232103
+Seesaw,Multi-media educational,,,43232505
+Siemens NX,Computer aided manufacturing CAM,,,43232612
+Siemens Solid Edge,Computer aided design CAD,,,43232604
+simplifyMD,Medical,,,43232610
+Simulation,Analytical or scientific,Simulation software,,43232605
+SIS,Database user interface and query,Student information systems|Student information systems SIS software,SIS,43232306
+Skype,Desktop communications,,,43232702
+Smalltalk,Object or component oriented development,,,43232405
+SmartDraw Legal,Graphics or photo imaging,,,43232102
+SmugMug Flickr,Graphics or photo imaging,,,43232102
+Snort,Network monitoring,,,43232801
+SOAPware EMR,Medical,,,43232610
+Software as a service SaaS,Cloud-based data access and sharing,,,43233513
+SolarWinds,Cloud-based protection or security,,,43233206
+SPC,Industrial control,Statistical process control|Statistical process control SPC software,SPC,43232608
+SPICE,Analytical or scientific,Simulation program with integrated circuit emphasis|Simulation program with integrated circuit emphasis SPICE,SPICE,43232605
+SSO,Authentication server,Single sign-on|Single sign-on SSO,SSO,43233201
+StataCorp Stata,Analytical or scientific,,,43232605
+StatCom Patient Flow Logistics Enterprise Suite,Medical,,,43232610
+STATISTICA,Analytical or scientific,,,43232605
+Statistical,Analytical or scientific,Statistical software,,43232605
+Sun Microsystems Java,Object or component oriented development,,,43232405
+SynaMed EMR,Medical,,,43232610
+Systat Software SigmaPlot,Analytical or scientific,,,43232605
+Tadpoles,Desktop communications,,,43232702
+Tcpdump,Network monitoring,,,43232801
+Tenable Nessus,Cloud-based protection or security,,,43233206
+The CAD Zone The Crime Zone,Graphics or photo imaging,,,43232102
+Thomson Reuters Westlaw,Information retrieval or search,,,43232309
+Timekeeping,Time accounting,Timekeeping software,,43231605
+Trimble SketchUp Pro,Graphics or photo imaging,SketchUp Pro,,43232102
+Trimble Terramodel,Computer aided design CAD,Terramodel,,43232604
+Turtle Creek Software Goldenseal,Accounting,,,43231601
+Ubuntu,Operating system,,,43233004
+UGS Solid Edge,Computer aided design CAD,,,43232604
+Ultimate Software UltiPro Workplace,Human resources,,,43231505
+UML,Requirements analysis and system architecture,Unified modeling language|Unified modeling language UML,UML,43232407
+Unity Technologies Unity,Development environment,,,43232402
+Verilog,Development environment,,,43232402
+Veritas NetBackup,Backup or archival,,,43233415
+Very high-speed integrated circuit VHSIC hardware description language,Development environment,VHDL|Very high-speed integrated circuit VHSIC hardware description language VHDL,VHDL,43232402
+Videoconferencing,Video conferencing,Videoconferencing software,,43233502
+Vitera Healthcare Solutions Vitera Intergy,Medical,,,43232610
+VMware,Clustering,,,43232302
+Voice over internet protocol VoIP system,Internet protocol IP multimedia subsystem,Voice over internet protocol VoIP system software,,43232805
+VPN,Network security and virtual private network VPN equipment,Virtual private networking|Virtual private networking VPN software,VPN,43233204
+WeVideo,Video creation and editing,,,43232103
+Wireshark,Network monitoring,,,43232801
+Wolfram Research Mathematica,Analytical or scientific,,,43232605
+WordPress,Web page creation and editing,,,43232107
+WRSHealth EMR,Medical,,,43232610
+Xactware Xactimate,Database user interface and query,,,43232306
+XHTML,Web platform development,Extensible hypertext markup language|Extensible hypertext markup language XHTML,XHTML,43232408
+XSL,Enterprise application integration,Extensible stylesheet language|Extensible stylesheet language XSL,XSL,43232403
+XSLT,Web platform development,Extensible stylesheet language transformations|Extensible stylesheet language transformations XSLT,XSLT,43232408
+Yardi,Database user interface and query,Yardi software,,43232306

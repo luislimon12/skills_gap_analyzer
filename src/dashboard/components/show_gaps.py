@@ -1,5 +1,6 @@
 """Display ranked skill gaps supplied by the scoring layer."""
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -31,6 +32,56 @@ def render_gap_table(gap_scores: list[dict]) -> None:
                 for row in rank_gap_scores(gap_scores)
             ]
         ),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
+
+
+def render_demand_chart(skills: list[dict], limit: int = 20) -> None:
+    """Horizontal bars of the most-demanded skills, coloured by resume coverage."""
+    if not skills:
+        return
+    top = sorted(skills, key=lambda row: (-row["demand"], -row["weighted_demand"]))[:limit]
+    frame = pd.DataFrame(
+        {
+            "Skill": row["skill"],
+            "Share of postings": row["demand"],
+            "Weighted demand": row["weighted_demand"],
+            "Wilson low": row["confidence_low"],
+            "Wilson high": row["confidence_high"],
+            "Status": "On your resume" if row["has_skill"] else "Gap",
+        }
+        for row in top
+    )
+    order = list(frame["Skill"])
+    bars = (
+        alt.Chart(frame)
+        .mark_bar()
+        .encode(
+            x=alt.X("Share of postings:Q", title="Share of postings",
+                    axis=alt.Axis(format="%"), scale=alt.Scale(domain=[0, 1])),
+            y=alt.Y("Skill:N", sort=order, title=None,
+                    axis=alt.Axis(labelOverlap=False, labelLimit=240)),
+            color=alt.Color(
+                "Status:N",
+                scale=alt.Scale(domain=["On your resume", "Gap"], range=["#2e7d5b", "#c8553d"]),
+                legend=alt.Legend(orient="bottom", title=None),
+            ),
+            tooltip=[
+                "Skill",
+                alt.Tooltip("Share of postings:Q", format=".0%"),
+                alt.Tooltip("Weighted demand:Q", format=".0%"),
+                alt.Tooltip("Wilson low:Q", format=".0%"),
+                alt.Tooltip("Wilson high:Q", format=".0%"),
+                "Status",
+            ],
+        )
+    )
+    interval = (
+        alt.Chart(frame)
+        .mark_rule(color="#555")
+        .encode(x=alt.X("Wilson low:Q", title="Share of postings"), x2="Wilson high:Q",
+                y=alt.Y("Skill:N", sort=order))
+    )
+    st.altair_chart((bars + interval).properties(height=26 * len(frame) + 40), width="stretch")
+    st.caption("Bars show the share of sampled postings that mention each skill; lines show the 95% Wilson interval.")
