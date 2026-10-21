@@ -49,6 +49,10 @@ optional `where` location filter live in `src/pipeline/config_postings.yaml`.
 
 ## What the dashboard shows
 
+The results are split into sections; switch between them with the row of
+buttons under **Choose what to look at**.
+
+
 - **Job market sample**: postings in the sample, Adzuna's live listing count,
   the median advertised salary in the sample, and Adzuna's mean salary for the
   search.
@@ -60,10 +64,11 @@ optional `where` location filter live in `src/pipeline/config_postings.yaml`.
 - **Skill explorer**: a clickable demand chart. Green bars are the skills you
   search with; they start as the skills on your resume. Click a bar to add or
   remove a skill (double-click to undo your clicks), sort by demand, your skills
-  or biggest gaps. Below it, postings are ranked by how heavily they lean on the
-  picked skills: Match balances the share of a posting's skill list you cover
-  with how many of your picked skills it asks for (required mentions count
-  double preferred ones).
+  or biggest gaps. Below it, filter the postings to those that ask for **only**
+  your picked skills, **mostly** your picked skills (more than half of the
+  posting's skill weight), or **any** of them (ranked by Match, which balances
+  the share of a posting's skill list you cover with how many of your picked
+  skills it asks for). Required mentions count double preferred ones.
 - **Other recurring requirements**: short phrases that recur across the
   postings but aren't in the taxonomy (e.g. "steel-toe boots", "cross-border
   routes"), flagged when your resume doesn't mention them. Job-ad filler

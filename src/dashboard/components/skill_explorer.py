@@ -14,6 +14,26 @@ _SORTS = {
 }
 
 
+# Job-list filters: (button label, what it means, what to say when nothing matches).
+_MODES = {
+    "only": (
+        "Only my picked skills",
+        "Postings that ask for nothing beyond your picked skills, the ones using most of them first.",
+        "No posting asks for only these skills. Try **Mostly my picked skills**, or pick more skills.",
+    ),
+    "mostly": (
+        "Mostly my picked skills",
+        "Postings where your picked skills make up more than half of what they ask for, best coverage first.",
+        "No posting is mostly about these skills. Try **Any of my picked skills**, or pick more skills.",
+    ),
+    "any": (
+        "Any of my picked skills",
+        "Every posting that mentions at least one picked skill, best overall match first.",
+        "None of these postings mention the picked skills.",
+    ),
+}
+
+
 def _picked_from_chart(event, base: set[str]) -> set[str]:
     """Each clicked bar flips that skill relative to the starting picks."""
     clicked = {point["Skill"] for point in (event.selection.get("picked") or []) if "Skill" in point}
@@ -107,14 +127,16 @@ def render_skill_explorer(
         st.info("Click one or more bars above to pick skills.")
         return
     st.write("**Picked:** " + ", ".join(picked))
-    ranked = rank_postings_by_skills(postings, picked, matcher)
+    mode = st.segmented_control(
+        "Show jobs that ask for", list(_MODES), default="mostly", key=f"explorer_mode:{key}",
+        format_func=lambda m: _MODES[m][0],
+    ) or "mostly"
+    st.caption(_MODES[mode][1])
+    ranked = rank_postings_by_skills(postings, picked, matcher, mode=mode)
     if not ranked:
-        st.info("None of the sampled postings mention the picked skills.")
+        st.info(_MODES[mode][2])
         return
-    st.caption(
-        "Match is higher when a posting asks for many of your picked skills and little else. "
-        "Required skills count double nice-to-haves."
-    )
+    st.caption(f"{len(ranked)} of {len(postings)} postings. Required skills count double nice-to-haves.")
     view = st.radio("Show postings as", ["Cards", "Table"], index=0 if _is_phone() else 1,
                     horizontal=True, key=f"explorer_view:{key}")
     if view == "Cards":

@@ -149,7 +149,7 @@ def test_without_live_search_there_is_no_fetch_button_and_a_plain_explanation(ap
 def test_empty_role_shows_one_message_and_the_occupation_reference(app_env):
     at = _run(app_env, role="Registered Nurse")
     assert len(at.info) == 1
-    assert not at.tabs
+    assert not at.segmented_control  # no sections to switch between without postings
     assert at.subheader[0].value == "What a Registered Nurse typically uses"
 
 
@@ -254,7 +254,58 @@ def test_skill_explorer_starts_from_resume_skills_and_ranks_postings(app_env):
     ranked = next(d.value for d in at.dataframe if "Your skills it asks for" in d.value.columns)
     assert list(ranked.columns[:3]) == ["Match", "Title", "Open"]  # the link stays visible on narrow screens
     assert len(ranked) > 0
-    assert ranked["Match"].is_monotonic_decreasing
+
+
+def _explorer(at: AppTest, name: str):
+    """The explorer widget whose key starts with ``explorer_<name>:``."""
+    for kind in ("segmented_control", "radio", "button"):
+        for widget in getattr(at, kind):
+            if widget.key and widget.key.startswith(f"explorer_{name}:"):
+                return widget
+    raise LookupError(name)
+
+
+def _job_rows(at: AppTest):
+    return next(d.value for d in at.dataframe if "Your skills it asks for" in d.value.columns)
+
+
+def test_job_filters_only_mostly_and_any(app_env):
+    insert_postings(_postings("Data Analyst"), app_env["db"])
+    at = _run(app_env, role="Data Analyst", resume=STUDENT_RESUME)
+    assert _explorer(at, "mode").value == "mostly"  # default
+    counts = {}
+    for mode in ("only", "mostly", "any"):
+        _explorer(at, "mode").set_value(mode).run()
+        assert not at.exception, mode
+        infos = [i.value for i in at.info]
+        rows = None if any("No posting" in i or "None of these" in i for i in infos) else _job_rows(at)
+        counts[mode] = 0 if rows is None else len(rows)
+        if rows is not None and mode == "only":
+            assert (rows["Also asks for"] == "").all()  # nothing beyond the picked skills
+        if rows is not None and mode == "any":
+            assert rows["Match"].is_monotonic_decreasing
+        if rows is not None and mode == "mostly":
+            covers = rows["Covers"].str.rstrip("%").astype(int)
+            assert (covers > 50).all() and covers.is_monotonic_decreasing
+    assert counts["only"] <= counts["mostly"] <= counts["any"]
+
+
+def test_section_buttons_switch_between_all_four_sections(app_env):
+    insert_postings(_postings("Data Analyst"), app_env["db"])
+    at = _run(app_env, role="Data Analyst", resume=STUDENT_RESUME)
+    sections = at.segmented_control(key="section")
+    assert sections.value == "skills"
+    assert len(sections.options) == 4
+    expected = {
+        "skills": "Explore skills and find matching postings",
+        "phrases": "Phrases that keep coming up",
+        "occupation": "Closest official occupations",
+        "similar": "similar wording",
+    }
+    for key, marker in expected.items():
+        at.segmented_control(key="section").set_value(key).run()
+        assert not at.exception, key
+        assert marker in _text(at) + "\n".join(w.label for w in at.multiselect), key
 
 
 def test_postings_can_be_shown_as_cards(app_env):
@@ -285,7 +336,11 @@ def test_recurring_requirements_tab_has_no_job_ad_filler(app_env):
     insert_postings(_postings("Data Analyst"), app_env["db"])
     insert_postings(_postings("Welder"), app_env["db"])
     at = _run(app_env, role="Data Analyst", resume=STUDENT_RESUME)
+    at.segmented_control(key="section").set_value("phrases").run()
+    assert not at.exception
     tables = [t.value for t in at.table]
+    if not tables:  # nothing recurs beyond the filler: the section says so
+        assert "No other phrases recur often enough in this posting sample." in [i.value for i in at.info]
     phrases = {p.lower() for table in tables for p in table.index}
     filler = {"description", "world", "world-class", "make", "impact", "toronto", "northwind health"}
     assert not phrases & filler, phrases

@@ -13,7 +13,17 @@ preferred/nice-to-have. A posting then gets two shares:
 ``match`` is their harmonic mean, so a posting ranks high only when it both
 centres on your skills and asks for many of them. Postings that mention none
 of the chosen skills are left out.
+
+``mode`` narrows the list:
+
+- ``"only"``: postings that ask for nothing outside the chosen skills
+  (coverage 100%), most chosen skills used first;
+- ``"mostly"``: postings where the chosen skills carry more than half of the
+  skill weight (coverage > 50%), highest coverage first;
+- ``"any"``: every posting that mentions a chosen skill, best ``match`` first.
 """
+
+MODES = ("only", "mostly", "any")
 
 from src.scoring.demand_scorer import posting_skill_weights
 from src.scoring.skill_matcher import SkillMatcher
@@ -24,13 +34,16 @@ def rank_postings_by_skills(
     chosen_skills: list[str],
     matcher: SkillMatcher | None = None,
     limit: int | None = None,
+    mode: str = "any",
 ) -> list[dict]:
-    """Postings ordered by ``match`` (then coverage, then title).
+    """Postings filtered and ordered by ``mode`` (see the module docstring).
 
     Returns ``[{"posting", "match", "coverage", "uses", "matched", "missing"}]``
     where ``matched``/``missing`` are skill names the posting asks for that are
     in/not in ``chosen_skills``, required ones first.
     """
+    if mode not in MODES:
+        raise ValueError(f"mode must be one of {MODES}, not {mode!r}")
     chosen = {skill.casefold() for skill in chosen_skills}
     if not postings or not chosen:
         return []
@@ -55,7 +68,15 @@ def rank_postings_by_skills(
                 "missing": [skill.name for skill, _ in ordered if skill.name.casefold() not in chosen],
             }
         )
-    results.sort(
-        key=lambda row: (-row["match"], -row["coverage"], (row["posting"].get("title") or "").casefold())
-    )
+    def title(row: dict) -> str:
+        return (row["posting"].get("title") or "").casefold()
+
+    if mode == "only":
+        results = [row for row in results if not row["missing"]]
+        results.sort(key=lambda row: (-row["uses"], -row["match"], title(row)))
+    elif mode == "mostly":
+        results = [row for row in results if row["coverage"] > 0.5]
+        results.sort(key=lambda row: (-row["coverage"], -row["match"], title(row)))
+    else:
+        results.sort(key=lambda row: (-row["match"], -row["coverage"], title(row)))
     return results if limit is None else results[:limit]

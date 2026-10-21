@@ -238,14 +238,27 @@ if resume_text:
         st.text(resume_text)
 else:
     st.info("Add your resume above to see how well you match and which skills to learn next. "
-            "Until then, the tabs below show what this job asks for.")
+            "Until then, the sections below show what this job asks for.")
 
-postings_tab, phrases_tab, baseline_tab, related_tab = st.tabs(
-    ["Skills employers ask for", "Other things postings mention", "Occupation reference (O*NET)",
-     "Postings most like your resume"]
-)
+# Big labelled buttons instead of tabs: people didn't notice tab labels were clickable.
+SECTIONS = {
+    "skills": (":material/bar_chart: Skills employers ask for",
+               "Which skills these postings want, what to learn next, and jobs that match your skills."),
+    "phrases": (":material/forum: Other things postings mention",
+                "Phrases that keep coming up in the postings but aren't in our skill list, like shift types or equipment."),
+    "occupation": (":material/work: Occupation reference (O*NET)",
+                   "The software and tools this kind of job typically uses, from the official U.S. occupation database."),
+    "similar": (":material/description: Postings most like your resume",
+                "The postings whose wording overlaps most with your resume."),
+}
+st.markdown("### Choose what to look at")
+section = st.segmented_control(
+    "Choose what to look at", list(SECTIONS), default="skills", key="section",
+    format_func=lambda key: SECTIONS[key][0], label_visibility="collapsed", width="stretch",
+) or "skills"  # clicking the selected button again deselects it; keep showing something
+st.caption(SECTIONS[section][1])
 
-with postings_tab:
+if section == "skills":
     analysis = cached_analysis(resume_text, postings)
     if resume_text:
         fit_col, matched_col, gaps_col = st.columns(3)
@@ -283,19 +296,19 @@ with postings_tab:
             )
     else:
         st.info("No known skills were found in these postings. "
-                "See **Other things postings mention** for phrases that come up often.")
+                "Click **Other things postings mention** above for phrases that come up often.")
 
-with phrases_tab:
+elif section == "phrases":
     # Other roles' postings show which phrases are job-ad filler rather than this role's requirements.
     background = [p for p in load_postings(db_path=database_path) if p["role"] != role]
     render_discovered_phrases(
         cached_phrases(resume_text, postings, role, background), has_resume=bool(resume_text)
     )
 
-with baseline_tab:
+elif section == "occupation":
     render_occupation_baseline(role, resume_text, resume_skills)
 
-with related_tab:
+elif section == "similar":
     if not resume_text:
         st.info("Add your resume to see the postings whose wording is closest to it.")
     else:
