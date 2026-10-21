@@ -185,3 +185,12 @@ def load_latest_market_snapshot(role: str, db_path: Path = DB_PATH) -> dict | No
 if __name__ == "__main__":
     init_db()
     print(f"Database ready at {DB_PATH}")
+
+
+def stored_role_counts(db_path: Path = DB_PATH) -> dict[str, int]:
+    """How many postings are stored per role, e.g. {"Welder": 30}."""
+    conn = sqlite3.connect(db_path)
+    try:
+        return dict(conn.execute("SELECT role, COUNT(*) FROM postings GROUP BY role").fetchall())
+    finally:
+        conn.close()

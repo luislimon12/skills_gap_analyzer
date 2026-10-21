@@ -31,8 +31,11 @@ for module contracts.
    ```bash
    streamlit run src/dashboard/app.py
    ```
-5. In the sidebar: pick a role (or type any job title, e.g. "Dental Hygienist" or
-   "PSW"), upload your resume, and click **Fetch latest postings for this role**.
+5. At the top of the page: pick the job you want (type to search, including
+   abbreviations like "PSW"; or choose **Other** and type any title), add your
+   resume, and click **Get the latest ... postings**. The button only appears
+   when Adzuna keys (or Greenhouse/Lever boards) are configured; the sidebar
+   holds the operator settings (live-search status, pages per search).
 
 You can also pull postings from the command line:
 

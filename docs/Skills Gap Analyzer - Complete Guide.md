@@ -120,7 +120,7 @@ sequenceDiagram
     S->>D: Choose/type role, upload resume
     D->>SC: match_occupations(role)
     SC-->>D: O*NET occupations (editable picker)
-    S->>D: Click "Fetch latest postings"
+    S->>D: Click "Get the latest postings"
     D->>P: run(roles=[role], max_pages)
     loop up to max_pages
         P->>A: GET /jobs/ca/search/{page}
@@ -272,7 +272,7 @@ skills_gap_analyzer/
    ```bash
    streamlit run src/dashboard/app.py
    ```
-5. In the sidebar: pick a role (or **Other** → type any title), upload a resume, click **Fetch latest postings for this role**.
+5. At the top of the page: pick a job (or **Other** → type any title), add a resume, click **Get the latest ... postings**.
 
 Command-line alternatives:
 

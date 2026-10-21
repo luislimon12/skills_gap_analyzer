@@ -99,7 +99,7 @@ def render_skill_explorer(
     picked = sorted(state["picked"], key=lambda s: [r["skill"] for r in skills].index(s))
     st.caption(
         "Green bars are the skills you're searching with: they start as the skills on your resume. "
-        "Click a bar to add or remove it; double-click the chart to undo your clicks."
+        "Click or tap a bar to add or remove it; double-click the chart to undo your clicks."
     )
 
     st.markdown("#### Postings that lean on your picked skills")
@@ -112,21 +112,55 @@ def render_skill_explorer(
         st.info("None of the sampled postings mention the picked skills.")
         return
     st.caption(
-        "Match balances how much of a posting's skill list you cover with how many of your picked "
-        "skills it asks for. Required mentions count double preferred ones."
+        "Match is higher when a posting asks for many of your picked skills and little else. "
+        "Required skills count double nice-to-haves."
     )
+    view = st.radio("Show postings as", ["Cards", "Table"], index=0 if _is_phone() else 1,
+                    horizontal=True, key=f"explorer_view:{key}")
+    if view == "Cards":
+        _render_cards(ranked)
+    else:
+        _render_table(ranked)
+
+
+def _is_phone() -> bool:
+    """Best guess from the browser's user agent; the viewer can switch views either way."""
+    try:
+        agent = st.context.headers.get("User-Agent") or ""
+    except Exception:  # no browser context (tests, bare mode)
+        return False
+    return "Mobi" in agent or "Android" in agent
+
+
+def _render_cards(ranked: list[dict], limit: int = 10) -> None:
+    """One bordered card per posting: easy to read and tap on a phone."""
+    for row in ranked[:limit]:
+        posting = row["posting"]
+        with st.container(border=True):
+            title = f"[{posting['title']}]({posting['url']})" if posting.get("url") else posting["title"]
+            st.markdown(f"**{title}** · {round(row['match'] * 100)}% match")
+            st.caption(" · ".join(part for part in (posting.get("company"), posting.get("location"),
+                                                    posting.get("posted_date")) if part))
+            st.markdown("**Uses your:** " + ", ".join(row["matched"]))
+            if row["missing"]:
+                st.markdown("**Also wants:** " + ", ".join(row["missing"]))
+    if len(ranked) > limit:
+        st.caption(f"Showing the top {limit} of {len(ranked)} postings. Switch to Table to see them all.")
+
+
+def _render_table(ranked: list[dict]) -> None:
     st.dataframe(
         pd.DataFrame(
             {
                 "Match": round(row["match"] * 100),
                 "Title": row["posting"]["title"],
+                "Open": row["posting"]["url"],
                 "Company": row["posting"]["company"],
-                "Location": row["posting"]["location"],
-                "Posted": row["posting"]["posted_date"],
-                "Covers": f"{row['coverage']:.0%}",
                 "Your skills it asks for": ", ".join(row["matched"]),
                 "Also asks for": ", ".join(row["missing"]),
-                "URL": row["posting"]["url"],
+                "Covers": f"{row['coverage']:.0%}",
+                "Location": row["posting"]["location"],
+                "Posted": row["posting"]["posted_date"],
             }
             for row in ranked
         ),
@@ -137,6 +171,6 @@ def render_skill_explorer(
             "Covers": st.column_config.TextColumn(
                 "Covers", help="Share of the posting's skill weight that falls on your picked skills."
             ),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+            "Open": st.column_config.LinkColumn("Open", display_text="Open"),
         },
     )

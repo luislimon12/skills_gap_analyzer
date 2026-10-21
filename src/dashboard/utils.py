@@ -1,10 +1,11 @@
 """Shared configuration and data-loading helpers for the Streamlit dashboard."""
 
+import re
 from pathlib import Path
 
 import yaml
 
-from src.pipeline.store_postings import init_db, load_postings
+from src.pipeline.store_postings import init_db, load_postings, stored_role_counts
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SETTINGS_PATH = PROJECT_ROOT / "config" / "settings.yaml"
@@ -43,6 +44,30 @@ def load_role_postings(role: str, database_path: Path) -> list[dict]:
     """Ensure the shared database exists, then load one role's postings."""
     init_db(database_path)
     return load_postings(role=role, db_path=database_path)
+
+
+_ROLE_NOISE = {"senior", "junior", "sr", "jr", "lead", "and", "of", "the", "i", "ii", "iii", "entry", "level"}
+
+
+def _role_words(role: str) -> set[str]:
+    return {w.rstrip("s") for w in re.findall(r"[a-z0-9]+", role.lower())} - _ROLE_NOISE
+
+
+def similar_stored_roles(role: str, database_path: Path, limit: int = 5) -> list[tuple[str, int]]:
+    """Roles with saved postings whose title shares a word with ``role``, most-overlapping first.
+
+    Helps when a typed title ("Welder Fabricator") has no postings but a close one ("Welder") does.
+    """
+    init_db(database_path)
+    wanted = _role_words(role)
+    scored = [
+        (len(wanted & _role_words(name)), count, name)
+        for name, count in stored_role_counts(database_path).items()
+        if name and name.casefold() != role.strip().casefold()
+    ]
+    scored = [item for item in scored if item[0]]
+    scored.sort(key=lambda item: (-item[0], -item[1], item[2]))
+    return [(name, count) for _, count, name in scored[:limit]]
 
 
 def rank_gap_scores(gap_scores: list[dict], limit: int | None = None) -> list[dict]:
