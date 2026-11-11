@@ -220,10 +220,22 @@ def test_rank_postings_by_skills_ranks_more_matches_before_weighted_score():
     results = rank_postings_by_skills(
         postings,
         include_skills=["Python", "SQL"],
-        skill_weights={"python": 0.2, "sql": 0.8},
+        skill_weights={"PYTHON": 0.2, "Sql": 0.8},
     )
 
     assert results[0]["matched_count"] == 2
     assert results[0]["weighted_score"] == pytest.approx(1.0)
     assert results[1]["matched_count"] == 1
     assert results[1]["weighted_score"] == pytest.approx(0.2)
+
+
+def test_rank_postings_by_skills_uses_casefolded_weight_keys():
+    from src.scoring.text_similarity import rank_postings_by_skills
+
+    results = rank_postings_by_skills(
+        [{"title": "Data Analyst", "full_text": "Python experience."}],
+        include_skills=["Python", "SQL"],
+        skill_weights={"PYTHON": 0.7, "sql": 0.3},
+    )
+
+    assert results[0]["weighted_score"] == pytest.approx(0.7)

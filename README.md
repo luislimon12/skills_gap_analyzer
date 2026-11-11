@@ -28,8 +28,8 @@ for module contracts.
 The launcher reuses an existing `.venv` or `venv`, or creates `.venv` if
 needed. It installs dependencies on first run (and when `requirements.txt`
 changes), creates `.env` from `.env.example` if needed, and starts the dashboard
-in your browser. Python 3 must be installed. Optional Adzuna and USAJOBS API
-keys can be added to `.env`; the dashboard can still start without them.
+in your browser. Python 3.10 or later must be installed. Optional Adzuna and
+USAJOBS API keys can be added to `.env`; the dashboard can still start without them.
 
 To set up or start the project manually instead:
 ```bash

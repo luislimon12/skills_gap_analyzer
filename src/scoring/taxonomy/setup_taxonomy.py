@@ -132,14 +132,17 @@ def clean_onet_example(
 ) -> tuple[str, list[str]] | None:
     """Turn an O*NET technology example into ``(skill_name, aliases)``.
 
-    "Amazon Web Services AWS software" -> ("Amazon Web Services", ["AWS"])
+    "Amazon Web Services AWS software" -> ("AWS", ["Amazon Web Services", original example])
     "Structured query language SQL"    -> ("SQL", ["Structured query language"])
     "Apache Kafka"                     -> ("Apache Kafka", ["Kafka"])
     "Database reporting software"      -> None (a category, not a product)
     "Tax software"                     -> None when "tax" is in ``generic_words``
     """
     text = example.replace("®", "").replace("™", "")
-    text = text.replace("Amazon Web Services AWS ", "AWS ")  # "... AWS CloudFormation" -> "AWS CloudFormation"
+    amazon_web_services_alias = False
+    if text.startswith("Amazon Web Services AWS"):
+        text = text.replace("Amazon Web Services AWS", "AWS", 1)
+        amazon_web_services_alias = True
     tokens = text.split()
     if len(tokens) > 1 and tokens[-1].lower() == "software":
         tokens = tokens[:-1]
@@ -173,6 +176,8 @@ def clean_onet_example(
 
     if example.strip() != name and example.strip() not in aliases:
         aliases.append(example.strip())
+    if amazon_web_services_alias and "Amazon Web Services" not in aliases:
+        aliases.insert(0, "Amazon Web Services")
     if len(name) < 3 or name.casefold() in _COMMON_WORDS:
         return None
     aliases = [a for a in aliases if len(a) >= 2 and a.casefold() not in _COMMON_WORDS]

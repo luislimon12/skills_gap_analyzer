@@ -43,9 +43,32 @@ _COUNTRIES = {"ca": "Canada", "canada": "Canada", "us": "United States",
               "usa": "United States", "united states": "United States"}
 
 
+def _without_trailing_country(location: str) -> str:
+    return re.sub(
+        r"(?:,|\s)+(?:canada|united states|u\.s\.a?\.?|usa)\s*$",
+        "",
+        location,
+        flags=re.IGNORECASE,
+    )
+
+
+def _trailing_region(location: str, regions: dict) -> str:
+    location = _without_trailing_country(location)
+    for code, (name, _) in regions.items():
+        if re.search(rf"(?:,|\s)\s*{re.escape(name)}\s*$", location, flags=re.IGNORECASE):
+            return name
+    for code, (name, _) in regions.items():
+        if re.search(rf"(?:,|\s)\s*{code}\s*$", location, flags=re.IGNORECASE):
+            return name
+    return ""
+
+
 def _region_from_location(location: str, country: str) -> str:
     regions = CANADIAN_REGIONS if country == "Canada" else US_REGIONS
     lower = location.casefold()
+    trailing = _trailing_region(location, regions)
+    if trailing:
+        return trailing
     for name, code in regions.values():
         if re.search(rf"\b{re.escape(name.casefold())}\b", lower):
             return name
@@ -70,6 +93,10 @@ def normalize_geography(
             country = "Canada"
         elif re.search(r"\b(united states|u\.s\.a?\.?|america)\b", lower):
             country = "United States"
+        elif _trailing_region(location, US_REGIONS):
+            country = "United States"
+        elif _trailing_region(location, CANADIAN_REGIONS):
+            country = "Canada"
         elif any(re.search(rf"\b{re.escape(name.casefold())}\b", lower)
                  for name, _ in CANADIAN_REGIONS.values()):
             country = "Canada"

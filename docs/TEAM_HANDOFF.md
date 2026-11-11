@@ -34,7 +34,12 @@ on the volume and quality of the posting sample.
 
 - **Postings** — `src.pipeline.store_postings.load_postings(role=None)` returns
   dicts in the shape documented at the top of `src/pipeline/normalize.py`.
-  `full_text` is clean plain text; `is_truncated` is True for Adzuna excerpts.
+  `full_text` is clean plain text; `is_truncated` is True for Adzuna excerpts
+  and Canada Job Bank rows (structured fields without full descriptions).
+  Adzuna supplies live market count/mean salary snapshots; Canada Job Bank can
+  also supply `category`, annual `salary_min` / `salary_max`, and
+  `contract_time`. Consumers should preserve those valid Job Bank values
+  instead of treating metadata as Adzuna-only.
   `requirement_level` is left `None` for Role 3 (required vs. preferred is per skill mention).
 - **Resumes** — `src.resume.parse_resume.parse_resume(file, filename=None)` takes a
   path or an upload (Streamlit `UploadedFile` works) and returns clean text, or raises

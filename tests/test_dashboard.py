@@ -67,6 +67,89 @@ def test_salary_summary_uses_range_midpoints_and_skips_missing():
     assert salary_summary([{}]) is None
 
 
+def test_salary_summaries_keep_countries_separate():
+    from src.dashboard.utils import salary_summaries_by_country
+
+    summaries = salary_summaries_by_country([
+        {"country": "Canada", "salary_min": 70000, "salary_max": 90000},
+        {"country": "United States", "salary_min": 70000, "salary_max": 90000},
+    ])
+
+    assert summaries["Canada"]["median"] == 80000
+    assert summaries["United States"]["median"] == 80000
+    assert set(summaries) == {"Canada", "United States"}
+
+
+def test_onet_baseline_shows_all_rows(monkeypatch):
+    import pandas as pd
+    import streamlit as st
+
+    from src.dashboard.components.show_baseline import render_onet_baseline
+
+    captured = []
+    monkeypatch.setattr(st, "caption", lambda *args, **kwargs: None)
+    monkeypatch.setattr(st, "markdown", lambda *args, **kwargs: None)
+    monkeypatch.setattr(st, "dataframe", lambda frame, **kwargs: captured.append(frame))
+    rows = [
+        {
+            "skill": f"Technology {index}",
+            "has_skill": False,
+            "in_demand": False,
+            "hot_technology": False,
+            "occupations": ["Example occupation"],
+        }
+        for index in range(45)
+    ]
+
+    render_onet_baseline(rows, has_resume=True)
+
+    assert isinstance(captured[0], pd.DataFrame)
+    assert len(captured[0]) == 45
+
+
+def test_demand_chart_search_can_add_skills_outside_top_twenty(monkeypatch):
+    from types import SimpleNamespace
+
+    import streamlit as st
+
+    from src.dashboard.components.show_gaps import render_demand_chart
+
+    class Column:
+        def markdown(self, *args, **kwargs):
+            return None
+
+        def caption(self, *args, **kwargs):
+            return None
+
+    captured_charts = []
+    monkeypatch.setattr(st, "columns", lambda *_args, **_kwargs: (Column(), Column()))
+    monkeypatch.setattr(st, "caption", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        st,
+        "altair_chart",
+        lambda chart, **_kwargs: (
+            captured_charts.append(chart) or SimpleNamespace(selection={"selected_skills": []})
+        ),
+    )
+    monkeypatch.setattr(st, "multiselect", lambda _label, options, **_kwargs: [options[-1]])
+    skills = [
+        {
+            "skill": f"Skill {index}",
+            "demand": 1 - index / 25,
+            "weighted_demand": 1 - index / 25,
+            "confidence_low": 0.1,
+            "confidence_high": 0.9,
+            "has_skill": False,
+        }
+        for index in range(25)
+    ]
+
+    selected = render_demand_chart(skills, chart_key="test_chart")
+
+    assert len(captured_charts[0].data) == 20
+    assert selected == ["Skill 24"]
+
+
 def test_analysis_rows_for_export_are_sorted_and_flat():
     from src.dashboard.utils import analysis_rows_for_export
 

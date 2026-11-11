@@ -84,6 +84,18 @@ def salary_summary(postings: list[dict]) -> dict | None:
     }
 
 
+def salary_summaries_by_country(postings: list[dict]) -> dict[str, dict | None]:
+    """Return separate salary summaries so currencies from different countries aren't mixed."""
+    countries = sorted({posting.get("country") or "Unknown country" for posting in postings})
+    return {
+        country: salary_summary([
+            posting for posting in postings
+            if (posting.get("country") or "Unknown country") == country
+        ])
+        for country in countries
+    }
+
+
 def analysis_rows_for_export(skills: list[dict]) -> list[dict]:
     """Flatten scored skills into CSV-friendly rows for the download button."""
     return [

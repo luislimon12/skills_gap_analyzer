@@ -80,12 +80,24 @@ def pull_adzuna(role: str, cfg: dict, save_raw: bool) -> tuple[list[dict], dict]
     return postings, market
 
 
-def pull_usajobs(role: str, cfg: dict, save_raw: bool) -> list[dict]:
+def pull_usajobs(
+    role: str,
+    cfg: dict,
+    save_raw: bool,
+    errors: list[str] | None = None,
+) -> list[dict]:
     """Fetch and normalize the configured USAJOBS search pages for one role."""
     postings = []
     per_page = cfg.get("results_per_page", 50)
     for page in range(1, cfg.get("max_pages_per_role", 2) + 1):
-        raw = fetch.fetch_usajobs_postings(role, page, per_page)
+        try:
+            raw = fetch.fetch_usajobs_postings(role, page, per_page)
+        except requests.RequestException as error:
+            message = f"usajobs:{role}: page {page}: {error}"
+            if errors is not None:
+                errors.append(message)
+            log.error("USAJOBS page fetch failed for %s: %s", role, message)
+            break
         if save_raw:
             fetch.save_raw(raw, f"usajobs_{_slug(role)}_page{page}.json")
         postings.extend(normalize_usajobs(raw, role))
@@ -183,11 +195,7 @@ def run(roles: list[str] | None = None, max_pages: int | None = None, save_raw: 
                 errors.append(f"canada_job_bank:{role}: {e}")
                 log.error("Could not normalize Canada Job Bank data for %s: %s", role, e)
         if use_usajobs:
-            try:
-                postings.extend(pull_usajobs(role, usajobs_cfg, save_raw))
-            except requests.RequestException as e:
-                errors.append(f"usajobs:{role}: {e}")
-                log.error("USAJOBS pull failed for %s: %s", role, e)
+            postings.extend(pull_usajobs(role, usajobs_cfg, save_raw, errors))
 
     unique = dedup_postings(postings)
     written = insert_postings(unique, db_path)

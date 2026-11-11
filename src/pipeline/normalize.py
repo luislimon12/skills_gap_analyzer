@@ -198,8 +198,29 @@ def _usajobs_text(job: dict) -> str:
         job.get("JobSummary"),
     ]
     for section in job.get("PositionFormattedDescription") or []:
-        parts.append(section.get("Label"))
-        parts.append(html_to_text(section.get("LabelDescription")))
+        if section.get("Label"):
+            parts.append(section["Label"])
+        if section.get("Content"):
+            parts.append(html_to_text(section["Content"]))
+    detail_rows = (job.get("UserArea") or {}).get("Details") or []
+    if isinstance(detail_rows, dict):
+        detail_rows = [
+            {"Key": key, "Value": value} for key, value in detail_rows.items()
+        ]
+    relevant_detail_keys = (
+        "dut", "responsib", "qualif", "require", "education", "experience",
+        "skill", "assessment", "condition",
+    )
+    for detail in detail_rows:
+        if not isinstance(detail, dict):
+            continue
+        key = str(detail.get("Key") or "")
+        if any(part in key.casefold() for part in relevant_detail_keys):
+            value = detail.get("Value")
+            if isinstance(value, list):
+                parts.extend(html_to_text(str(item)) for item in value)
+            elif value:
+                parts.append(html_to_text(str(value)))
     return clean_text("\n\n".join(str(part) for part in parts if part))
 
 
