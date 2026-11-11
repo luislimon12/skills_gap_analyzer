@@ -45,7 +45,8 @@ def render_demand_chart(
     """Show an interactive demand chart and return the selected skill names."""
     if not skills:
         return []
-    top = sorted(skills, key=lambda row: (-row["demand"], -row["weighted_demand"]))[:limit]
+    ranked = sorted(skills, key=lambda row: (-row["demand"], -row["weighted_demand"]))
+    top = ranked[:limit]
     frame = pd.DataFrame(
         {
             "Skill": row["skill"],
@@ -111,6 +112,14 @@ def render_demand_chart(
     )
     selected = chart_state.selection.get("selected_skills", [])
     selected_names = [item["Skill"] for item in selected if "Skill" in item]
+    chart_skills = {row["skill"].casefold() for row in top}
+    additional_skills = st.multiselect(
+        "Add skills outside the chart",
+        options=[row["skill"] for row in ranked if row["skill"].casefold() not in chart_skills],
+        key=f"{chart_key}_additional_skills",
+        help="Choose lower-ranked skills to include in the posting search.",
+    )
+    selected_names.extend(skill for skill in additional_skills if skill not in selected_names)
     st.caption(
         "Results prefer postings matching more selected skills, then use each skill's share "
         "of postings as its weight. Double-click the chart to clear."

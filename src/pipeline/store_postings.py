@@ -7,11 +7,12 @@ brings a better copy of a stored posting (full text instead of Adzuna's
 excerpt), the stored row is upgraded in place.
 """
 
+import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from src.pipeline.dedup_postings import make_dedup_key, postings_are_duplicates
+from src.pipeline.dedup_postings import make_dedup_key, make_posting_hash, postings_are_duplicates
 from src.pipeline.geography import normalize_geography
 
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "skills_gap.db"
@@ -27,6 +28,7 @@ CREATE TABLE IF NOT EXISTS postings (
     full_text TEXT,
     unique_hash TEXT UNIQUE,
     source_id TEXT,
+    source_identities TEXT,
     role TEXT,
     location TEXT,
     country TEXT,
@@ -58,6 +60,7 @@ CREATE TABLE IF NOT EXISTS market_snapshots (
 # Columns added after the week 1 schema. init_db adds them to an older database file.
 _ADDED_COLUMNS = {
     "source_id": "TEXT",
+    "source_identities": "TEXT",
     "role": "TEXT",
     "location": "TEXT",
     "country": "TEXT",
@@ -75,7 +78,7 @@ _ADDED_COLUMNS = {
 
 COLUMNS = [
     "title", "company", "source", "posted_date", "requirement_level", "full_text",
-    "unique_hash", "source_id", "role", "location", "country", "region", "dedup_key",
+    "unique_hash", "source_id", "source_identities", "role", "location", "country", "region", "dedup_key",
     "url", "is_truncated", "fetched_at",
     "salary_min", "salary_max", "salary_is_predicted", "contract_time", "category",
 ]
@@ -84,8 +87,13 @@ _UPSERT = f"""
 INSERT INTO postings ({", ".join(COLUMNS)})
 VALUES ({", ".join("?" for _ in COLUMNS)})
 ON CONFLICT(unique_hash) DO UPDATE SET
+    title = COALESCE(NULLIF(excluded.title, ''), postings.title),
+    company = COALESCE(NULLIF(excluded.company, ''), postings.company),
     source = excluded.source,
     source_id = excluded.source_id,
+    source_identities = excluded.source_identities,
+    posted_date = COALESCE(excluded.posted_date, postings.posted_date),
+    role = COALESCE(NULLIF(excluded.role, ''), postings.role),
     url = excluded.url,
     location = excluded.location,
     country = excluded.country,
@@ -93,7 +101,16 @@ ON CONFLICT(unique_hash) DO UPDATE SET
     dedup_key = excluded.dedup_key,
     full_text = excluded.full_text,
     is_truncated = excluded.is_truncated,
-    fetched_at = excluded.fetched_at
+    fetched_at = excluded.fetched_at,
+    salary_min = COALESCE(excluded.salary_min, postings.salary_min),
+    salary_max = COALESCE(excluded.salary_max, postings.salary_max),
+    salary_is_predicted = CASE
+        WHEN excluded.salary_min IS NOT NULL OR excluded.salary_max IS NOT NULL
+        THEN excluded.salary_is_predicted
+        ELSE postings.salary_is_predicted
+    END,
+    contract_time = COALESCE(NULLIF(excluded.contract_time, ''), postings.contract_time),
+    category = COALESCE(NULLIF(excluded.category, ''), postings.category)
 WHERE excluded.is_truncated < postings.is_truncated
    OR (excluded.is_truncated = postings.is_truncated
        AND length(excluded.full_text) > length(postings.full_text))
@@ -172,6 +189,20 @@ def backfill_posting_geography(
 def _row_values(posting: dict, fetched_at: str) -> list:
     row = {
         **posting,
+        "unique_hash": posting.get("unique_hash") or make_posting_hash(
+            posting.get("title") or "",
+            posting.get("company") or "",
+            posting.get("posted_date") or "",
+            location=posting.get("location") or "",
+            source=posting.get("source") or "",
+            source_id=posting.get("source_id") or "",
+            url=posting.get("url") or "",
+        ),
+        "source_identities": json.dumps(
+            posting.get("source_identities")
+            or ([{"source": posting["source"], "source_id": posting["source_id"]}]
+                if posting.get("source") and posting.get("source_id") else [])
+        ),
         "dedup_key": make_dedup_key(posting),
         "is_truncated": int(bool(posting.get("is_truncated"))),
         "salary_is_predicted": int(bool(posting.get("salary_is_predicted"))),
@@ -189,17 +220,61 @@ def insert_postings(postings: list[dict], db_path: Path = DB_PATH) -> int:
         for posting in postings:
             row = dict(posting)
             dedup_key = make_dedup_key(row)
+            conn.row_factory = sqlite3.Row
+            candidates_by_hash = {}
+            if row.get("source") and row.get("source_id"):
+                for candidate_row in conn.execute(
+                    "SELECT * FROM postings WHERE source = ? AND source_id = ?",
+                    (row["source"], row["source_id"]),
+                ).fetchall():
+                    candidates_by_hash[candidate_row["unique_hash"]] = candidate_row
+            if row.get("url"):
+                for candidate_row in conn.execute(
+                    "SELECT * FROM postings WHERE COALESCE(url, '') != ''"
+                ).fetchall():
+                    candidates_by_hash[candidate_row["unique_hash"]] = candidate_row
             if dedup_key:
-                conn.row_factory = sqlite3.Row
                 candidates = conn.execute(
                     "SELECT * FROM postings WHERE dedup_key = ?", (dedup_key,)
                 ).fetchall()
                 for candidate_row in candidates:
-                    candidate = dict(candidate_row)
-                    if postings_are_duplicates(row, candidate):
-                        row["unique_hash"] = candidate["unique_hash"]
-                        break
-                conn.row_factory = None
+                    candidates_by_hash[candidate_row["unique_hash"]] = candidate_row
+            for candidate_row in candidates_by_hash.values():
+                candidate = dict(candidate_row)
+                try:
+                    candidate["source_identities"] = json.loads(
+                        candidate.get("source_identities") or "[]"
+                    )
+                except (TypeError, ValueError):
+                    candidate["source_identities"] = []
+                if postings_are_duplicates(row, candidate):
+                    row["unique_hash"] = candidate["unique_hash"]
+                    identities = {
+                        (item.get("source", "").casefold(), str(item.get("source_id", "")).strip())
+                        for item in (row.get("source_identities") or [])
+                        if item.get("source") and item.get("source_id")
+                    }
+                    identities.update(
+                        (item["source"], item["source_id"])
+                        for item in candidate["source_identities"]
+                        if item.get("source") and item.get("source_id")
+                    )
+                    for identity_source, identity_id in (
+                        (row.get("source"), row.get("source_id")),
+                        (candidate.get("source"), candidate.get("source_id")),
+                    ):
+                        if identity_source and identity_id:
+                            identities.add((identity_source.casefold(), str(identity_id).strip()))
+                    row["source_identities"] = [
+                        {"source": source, "source_id": source_id}
+                        for source, source_id in sorted(identities)
+                    ]
+                    conn.execute(
+                        "UPDATE postings SET source_identities = ? WHERE unique_hash = ?",
+                        (json.dumps(row["source_identities"]), row["unique_hash"]),
+                    )
+                    break
+            conn.row_factory = None
             written += conn.execute(_UPSERT, _row_values(row, fetched_at)).rowcount
         conn.commit()
         return written
@@ -221,11 +296,17 @@ def load_postings(role: str | None = None, db_path: Path = DB_PATH) -> list[dict
             rows = conn.execute("SELECT * FROM postings ORDER BY id").fetchall()
         else:
             rows = conn.execute("SELECT * FROM postings WHERE role = ? ORDER BY id", (role,)).fetchall()
-        return [
-            {**dict(r), "is_truncated": bool(r["is_truncated"]),
-             "salary_is_predicted": bool(r["salary_is_predicted"])}
-            for r in rows
-        ]
+        postings = []
+        for result in rows:
+            posting = dict(result)
+            try:
+                posting["source_identities"] = json.loads(posting.get("source_identities") or "[]")
+            except (TypeError, ValueError):
+                posting["source_identities"] = []
+            posting["is_truncated"] = bool(posting["is_truncated"])
+            posting["salary_is_predicted"] = bool(posting["salary_is_predicted"])
+            postings.append(posting)
+        return postings
     finally:
         conn.close()
 

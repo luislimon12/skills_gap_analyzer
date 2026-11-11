@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -55,11 +56,16 @@ def prepare_environment() -> Path:
 
     if not ENV_FILE.exists():
         shutil.copy2(ENV_EXAMPLE, ENV_FILE)
+        if os.name == "posix":
+            os.chmod(ENV_FILE, stat.S_IRUSR | stat.S_IWUSR)
         print("Created .env from .env.example. Add optional API keys there to fetch those sources.")
     return python
 
 
 def main() -> int:
+    if sys.version_info < (3, 10):
+        print("Python 3.10 or later is required to run the dashboard.", file=sys.stderr)
+        return 1
     try:
         python = prepare_environment()
         return subprocess.run(

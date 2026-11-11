@@ -69,7 +69,8 @@ def candidate_phrases(text: str, max_words: int = 4) -> set[str]:
 
 
 def _mentions(phrase: str, text: str) -> bool:
-    return re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", text, re.IGNORECASE) is not None
+    phrase_pattern = r"\s+".join(re.escape(word) for word in phrase.split())
+    return re.search(rf"(?<!\w){phrase_pattern}(?!\w)", text, re.IGNORECASE) is not None
 
 
 def discover_phrases(

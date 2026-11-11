@@ -112,19 +112,20 @@ def merge_taxonomies(primary: list[Skill], supplement: list[Skill]) -> list[Skil
     for skill in supplement:
         key = skill.name.casefold()
         free_aliases = tuple(a for a in skill.aliases if owners.get(a.casefold(), key) == key)
+        free_exact = tuple(
+            term for term in skill.case_sensitive_terms
+            if owners.get(term.casefold(), key) == key
+        )
         if key in merged:
             existing = merged[key]
             merged[key] = Skill(
                 existing.name,
                 existing.category or skill.category,
                 tuple(dict.fromkeys((*existing.aliases, *free_aliases))),
-                existing.case_sensitive_terms,
+                tuple(dict.fromkeys((*existing.case_sensitive_terms, *free_exact))),
                 existing.source,
             )
         elif owners.get(key, key) == key:
-            free_exact = tuple(
-                t for t in skill.case_sensitive_terms if owners.get(t.casefold(), key) == key
-            )
             merged[key] = Skill(skill.name, skill.category, free_aliases, free_exact, skill.source)
         else:
             continue
@@ -199,7 +200,12 @@ def _index_patterns(
     terms = [term for skill in skills for term in skill.terms]
     index: dict[str, list[tuple[Skill, re.Pattern]]] = {}
     for term, item in zip(terms, patterns, strict=True):
-        index.setdefault(_first_token(term), []).append(item)
+        case_sensitive = term in item[0].case_sensitive_terms
+        candidate_terms = [term]
+        if not case_sensitive and term[-1:].isalpha() and len(term) >= 4:
+            candidate_terms.extend((f"{term}s", f"{term}es"))
+        for candidate_term in candidate_terms:
+            index.setdefault(_first_token(candidate_term), []).append(item)
     return index
 
 

@@ -26,8 +26,11 @@ def rank_postings_by_skills(
     matcher = matcher or SkillMatcher()
     include = list(dict.fromkeys(skill.casefold() for skill in include_skills))
     exclude = {skill.casefold() for skill in (exclude_skills or [])}
+    normalized_weights = {
+        key.casefold(): value for key, value in (skill_weights or {}).items()
+    }
     weights = {
-        skill: max(0.0, float((skill_weights or {}).get(skill, 0.0)))
+        skill: max(0.0, float(normalized_weights.get(skill, 0.0)))
         for skill in include
     }
     if not any(weights.values()):

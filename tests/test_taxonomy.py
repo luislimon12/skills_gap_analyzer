@@ -3,6 +3,7 @@
 import pytest
 
 from src.scoring.onet_baseline import occupation_codes_for_role, onet_baseline
+from src.scoring.phrase_discovery import _mentions
 from src.scoring.skill_matcher import Skill, SkillMatcher, load_taxonomy, match_skills, merge_taxonomies
 from src.scoring.taxonomy.setup_taxonomy import build_onet_taxonomy, clean_onet_example
 
@@ -65,6 +66,32 @@ def test_merge_keeps_curated_terms_authoritative():
     assert "Kafka" not in merged
 
 
+def test_merge_adds_unclaimed_case_sensitive_supplement_terms_for_same_skill():
+    merged = merge_taxonomies(
+        [Skill("Example tool")],
+        [Skill("Example tool", case_sensitive_terms=("R",), source="onet")],
+    )
+
+    assert merged[0].case_sensitive_terms == ("R",)
+
+
+def test_matcher_prefilters_plural_tokens_for_singular_patterns(tmp_path):
+    path = tmp_path / "nurse.csv"
+    path.write_text(
+        "skill_name,category,aliases\nRegistered Nurse,Healthcare,nurse\n",
+        encoding="utf-8",
+    )
+
+    assert [skill.name for skill in SkillMatcher(path).match("Experienced nurses")] == [
+        "Registered Nurse"
+    ]
+
+
+def test_phrase_mentions_allow_newlines_between_words():
+    assert _mentions("data analyst", "Senior DATA\n\tANALYST role")
+    assert not _mentions("data analyst", "database analyst")
+
+
 def test_explicit_taxonomy_path_and_case_sensitive_column(tmp_path):
     path = tmp_path / "tax.csv"
     path.write_text(
@@ -83,7 +110,12 @@ def test_explicit_taxonomy_path_and_case_sensitive_column(tmp_path):
 @pytest.mark.parametrize(
     "example, expected",
     [
-        ("Amazon Web Services AWS software", ("AWS", ["Amazon Web Services AWS software"])),
+        ("Amazon Web Services AWS software", (
+            "AWS", ["Amazon Web Services", "Amazon Web Services AWS software"]
+        )),
+        ("Amazon Web Services AWS", (
+            "AWS", ["Amazon Web Services", "Amazon Web Services AWS"]
+        )),
         ("Structured query language SQL", ("SQL", ["Structured query language", "Structured query language SQL"])),
         ("Apache Kafka", ("Apache Kafka", ["Kafka"])),
         ("Apache Subversion SVN", ("Apache Subversion", ["SVN", "Subversion", "Apache Subversion SVN"])),

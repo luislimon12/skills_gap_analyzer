@@ -13,7 +13,7 @@ def _coverage_caption(rows: list[dict], noun: str, has_resume: bool) -> str:
 
 
 def render_onet_baseline(
-    technologies: list[dict], tools: list[dict] | None = None, has_resume: bool = True, limit: int = 40
+    technologies: list[dict], tools: list[dict] | None = None, has_resume: bool = True
 ) -> None:
     """Show O*NET technologies and tools for the selected occupations, with resume coverage."""
     tools = tools or []
@@ -36,7 +36,7 @@ def render_onet_baseline(
                     "O*NET Hot Technology": "Yes" if row["hot_technology"] else "",
                     "Listed for": ", ".join(row["occupations"]),
                 }
-                for row in technologies[:limit]
+                for row in technologies
             ),
             width="stretch",
             hide_index=True,
@@ -52,7 +52,7 @@ def render_onet_baseline(
                     **({"On resume": "Yes" if row["has_skill"] else "No"} if has_resume else {}),
                     "Listed for": ", ".join(row["occupations"]),
                 }
-                for row in ordered[:limit]
+                for row in ordered
             ),
             width="stretch",
             hide_index=True,

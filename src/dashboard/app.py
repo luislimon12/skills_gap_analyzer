@@ -23,6 +23,7 @@ from src.dashboard.utils import (  # noqa: E402
     load_settings,
     resolve_database_path,
     salary_summary,
+    salary_summaries_by_country,
 )
 from src.pipeline.fetch_postings import (  # noqa: E402
     adzuna_keys_configured,
@@ -188,6 +189,8 @@ if fetch_postings:
         summary = run_postings_pipeline(roles=[role], max_pages=max_pages, db_path=database_path)
     st.session_state["fetch_summary"] = summary
     cached_analysis.clear()
+    cached_skill_postings.clear()
+    st.session_state.pop(f"skill_posting_search_{role}", None)
     st.rerun()
 
 summary = st.session_state.pop("fetch_summary", None)
@@ -254,7 +257,10 @@ if selected_region != "All provinces/states":
         postings = [p for p in postings if p.get("region") == selected_region]
 
 market = load_latest_market_snapshot(role, database_path)
-salaries = salary_summary(postings)
+all_countries_selected = selected_country == "All countries"
+salaries = None if all_countries_selected else salary_summary(postings)
+country_salaries = salary_summaries_by_country(postings) if all_countries_selected else {}
+has_country_salaries = any(summary is not None for summary in country_salaries.values())
 
 st.subheader(f"Job market sample: {role}")
 if len(postings) != all_postings_count:
@@ -268,12 +274,20 @@ live_col.metric(
 )
 salary_col.metric(
     "Median advertised salary (sample)",
-    money(salaries["median"]) if salaries else "n/a",
+    (
+        "See country summaries below"
+        if all_countries_selected and has_country_salaries
+        else money(salaries["median"]) if salaries else "n/a"
+    ),
     help=(
         f"Midpoint of each posting's range, {salaries['count']} postings with salary; "
         f"middle half {money(salaries['p25'])}–{money(salaries['p75'])}; "
-        f"{salaries['predicted_share']:.0%} estimated by Adzuna."
-        if salaries else "No postings in the sample list a salary."
+        f"{salaries['predicted_share']:.0%} marked as predicted by source."
+        if salaries else (
+            "Separate salary summaries are shown by country; no currencies are combined."
+            if all_countries_selected and has_country_salaries
+            else "No postings in the sample list a salary."
+        )
     ),
 )
 mean_col.metric(
@@ -281,6 +295,29 @@ mean_col.metric(
     money(market.get("mean_salary")) if market else "n/a",
     help="Adzuna's average advertised salary for this search at the last fetch.",
 )
+if all_countries_selected and has_country_salaries:
+    salary_groups = [
+        (country, summary)
+        for country, summary in country_salaries.items()
+        if summary is not None
+    ]
+    if salary_groups:
+        country_salary_cols = st.columns(len(salary_groups))
+        for column, (country, country_summary) in zip(country_salary_cols, salary_groups):
+            currency = {
+                "Canada": "CAD",
+                "United States": "USD",
+            }.get(country, "currency unknown")
+            column.metric(
+                f"{country} median ({currency})",
+                money(country_summary["median"]),
+                help=(
+                    f"{country_summary['count']} postings with salary; "
+                    f"middle half {money(country_summary['p25'])}–"
+                    f"{money(country_summary['p75'])}; "
+                    f"{country_summary['predicted_share']:.0%} marked as predicted by source."
+                ),
+            )
 
 if not postings:
     st.info(

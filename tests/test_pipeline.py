@@ -3,6 +3,7 @@
 import sqlite3
 
 import pytest
+import requests
 
 from src.common.text import clean_text, html_to_text
 from src.pipeline import fetch_postings, run_pipeline
@@ -140,8 +141,13 @@ USAJOBS_RAW = {
                 "QualificationSummary": "Experience with SQL.",
                 "PositionFormattedDescription": [{
                     "Label": "Duties",
-                    "LabelDescription": "<p>Build dashboards.</p>",
+                    "LabelDescription": "<p>Highlighted search term only.</p>",
+                    "Content": "<p>Build dashboards.</p>",
                 }],
+                "UserArea": {"Details": [
+                    {"Key": "Requirements", "Value": "<p>Python proficiency.</p>"},
+                    {"Key": "AgencyContactEmail", "Value": "contact@example.com"},
+                ]},
             },
         }],
     },
@@ -162,6 +168,9 @@ def test_normalize_usajobs():
     assert posting["posted_date"] == "2026-10-01"
     assert "Experience with SQL." in posting["full_text"]
     assert "Build dashboards." in posting["full_text"]
+    assert "Python proficiency." in posting["full_text"]
+    assert "Highlighted search term only." not in posting["full_text"]
+    assert "contact@example.com" not in posting["full_text"]
 
 
 def test_normalize_canada_job_bank_csv():
@@ -196,6 +205,7 @@ def test_normalize_canada_job_bank_does_not_treat_hourly_pay_as_annual():
         ("Toronto, ON", None, ("Canada", "Ontario")),
         ("Ottawa, Ontario, Canada", None, ("Canada", "Ontario")),
         ("Seattle, WA", None, ("United States", "Washington")),
+        ("Ontario, California", None, ("United States", "California")),
         ("Remote", None, ("", "")),
     ],
 )
@@ -247,6 +257,77 @@ def test_dedup_keeps_distinct_ids_from_same_source():
     }
     second = {**first, "source_id": "job-b"}
     assert len(dedup_postings([first, second])) == 2
+
+
+def test_dedup_keeps_same_source_distinct_ids_even_with_matching_url():
+    first = {
+        "source": "usajobs", "source_id": "job-a", "url": "https://example.test/jobs?job=1",
+        "title": "Data Analyst", "company": "Agency", "location": "Washington, DC",
+    }
+    second = {**first, "source_id": "job-b"}
+    assert len(dedup_postings([first, second])) == 2
+
+
+def test_dedup_retains_query_parameters_that_identify_postings():
+    from src.pipeline.dedup_postings import make_posting_hash
+
+    assert make_posting_hash("", "", "", url="https://example.test/jobs?job=1") != \
+        make_posting_hash("", "", "", url="https://example.test/jobs?job=2")
+    assert make_posting_hash("", "", "", url="https://example.test/jobs?job=1&utm_source=x") == \
+        make_posting_hash("", "", "", url="https://example.test/jobs?utm_source=y&job=1")
+
+
+def test_dedup_canonicalizes_region_in_location_key():
+    from src.pipeline.dedup_postings import make_dedup_key
+
+    abbreviated = {
+        "title": "Data Analyst", "company": "Acme", "location": "Toronto, ON",
+        "country": "Canada", "region": "Ontario",
+    }
+    full_name = {**abbreviated, "location": "Toronto, Ontario"}
+    assert make_dedup_key(abbreviated) == make_dedup_key(full_name)
+
+
+def test_dedup_preserves_source_identities_across_replacements():
+    first = {
+        "source": "provider-a", "source_id": "a-1", "url": "https://example.test/job/1",
+        "title": "Data Analyst", "company": "Acme", "location": "Toronto, ON",
+        "country": "Canada", "region": "Ontario", "full_text": "short", "is_truncated": True,
+    }
+    second = {
+        **first, "source": "provider-b", "source_id": "b-1",
+        "full_text": "longer full description", "is_truncated": False,
+    }
+    third = {**second, "source": "provider-a", "source_id": "a-2"}
+
+    unique = dedup_postings([first, second, third])
+
+    assert len(unique) == 2
+    assert {tuple(identity.values()) for identity in unique[0]["source_identities"]} == {
+        ("provider-a", "a-1"), ("provider-b", "b-1")
+    }
+
+
+def test_dedup_keeps_better_text_and_merges_missing_salary_metadata():
+    adzuna = {
+        "source": "adzuna", "source_id": "a-1", "title": "Data Analyst",
+        "company": "Acme", "location": "Toronto, Ontario", "country": "Canada",
+        "region": "Ontario", "posted_date": "2026-10-01", "full_text": "excerpt",
+        "is_truncated": True, "salary_min": 70000, "salary_max": 90000,
+        "salary_is_predicted": True,
+    }
+    greenhouse = {
+        **adzuna, "source": "greenhouse", "source_id": "g-1",
+        "full_text": "complete description", "is_truncated": False,
+        "salary_min": None, "salary_max": None, "salary_is_predicted": False,
+    }
+
+    unique = dedup_postings([adzuna, greenhouse])
+
+    assert len(unique) == 1
+    assert unique[0]["source"] == "greenhouse"
+    assert (unique[0]["salary_min"], unique[0]["salary_max"]) == (70000, 90000)
+    assert unique[0]["salary_is_predicted"] is True
 
 
 def test_dedup_uses_same_source_id_even_if_metadata_changes():
@@ -326,6 +407,73 @@ def test_stored_cross_source_duplicate_upgrades_existing_row(db):
     assert rows[0]["is_truncated"] is False
 
 
+def test_storage_finds_source_identity_when_dedup_key_changes(db):
+    first = {
+        "source": "usajobs", "source_id": "job-1", "title": "Data Analyst",
+        "company": "Agency", "location": "Washington, DC", "country": "United States",
+        "region": "District of Columbia", "full_text": "short", "is_truncated": True,
+    }
+    updated = {
+        **first, "title": "Senior Data Analyst", "location": "Remote",
+        "full_text": "longer complete description", "is_truncated": False,
+    }
+
+    insert_posting(first, db)
+    insert_posting(updated, db)
+
+    stored = load_postings(db_path=db)
+    assert len(stored) == 1
+    assert stored[0]["title"] == "Senior Data Analyst"
+
+
+def test_storage_matches_canonical_url_independently_of_dedup_key(db):
+    first = {
+        "source": "greenhouse", "source_id": "gh-1", "title": "Data Analyst",
+        "company": "Acme", "location": "Toronto, Ontario", "country": "Canada",
+        "region": "Ontario", "url": "https://example.test/job/1?utm_source=feed",
+        "full_text": "short", "is_truncated": True,
+    }
+    update = {
+        **first, "source": "adzuna", "source_id": "az-1", "title": "Senior Data Analyst",
+        "location": "Toronto, ON", "url": "https://EXAMPLE.test/job/1",
+        "full_text": "a longer complete description", "is_truncated": False,
+    }
+
+    insert_posting(first, db)
+    insert_posting(update, db)
+
+    stored = load_postings(db_path=db)
+    assert len(stored) == 1
+    assert stored[0]["title"] == "Senior Data Analyst"
+    assert {tuple(identity.values()) for identity in stored[0]["source_identities"]} == {
+        ("adzuna", "az-1"), ("greenhouse", "gh-1")
+    }
+
+
+def test_upsert_preserves_existing_salary_and_updates_available_metadata(db):
+    first = {
+        "source": "adzuna", "source_id": "az-1", "title": "Data Analyst",
+        "company": "Acme", "location": "Toronto", "country": "Canada",
+        "full_text": "excerpt", "is_truncated": True, "salary_min": 70000,
+        "salary_max": 90000, "salary_is_predicted": True, "contract_time": "full_time",
+        "category": "IT Jobs",
+    }
+    full_text_copy = {
+        **first, "source": "greenhouse", "source_id": "gh-1", "full_text": "complete description",
+        "is_truncated": False, "salary_min": None, "salary_max": None,
+        "salary_is_predicted": False, "contract_time": None, "category": "",
+    }
+
+    insert_posting(first, db)
+    insert_posting(full_text_copy, db)
+
+    stored = load_postings(db_path=db)[0]
+    assert (stored["salary_min"], stored["salary_max"]) == (70000, 90000)
+    assert stored["salary_is_predicted"] is True
+    assert stored["contract_time"] == "full_time"
+    assert stored["category"] == "IT Jobs"
+
+
 def test_init_db_migrates_week1_schema(tmp_path):
     path = tmp_path / "old.db"
     conn = sqlite3.connect(path)
@@ -402,6 +550,29 @@ def test_run_pipeline_fetches_usajobs_when_configured(tmp_path, monkeypatch):
     summary = run_pipeline.run(config=config, db_path=tmp_path / "usajobs.db", save_raw=False)
     assert summary["fetched"] == summary["unique"] == summary["written"] == 1
     assert load_postings(db_path=tmp_path / "usajobs.db")[0]["source"] == "usajobs"
+
+
+def test_pull_usajobs_keeps_successful_pages_when_later_page_fails(monkeypatch):
+    calls = []
+
+    def fetch_page(role, page, per_page):
+        calls.append(page)
+        if page == 2:
+            raise requests.ConnectionError("network unavailable")
+        return USAJOBS_RAW
+
+    monkeypatch.setattr(fetch_postings, "fetch_usajobs_postings", fetch_page)
+    errors = []
+    postings = run_pipeline.pull_usajobs(
+        "Data Analyst",
+        {"max_pages_per_role": 3, "results_per_page": 1, "request_delay_seconds": 0},
+        save_raw=False,
+        errors=errors,
+    )
+
+    assert calls == [1, 2]
+    assert len(postings) == 1
+    assert errors and "page 2" in errors[0]
 
 
 def test_run_pipeline_fetches_job_bank_once_for_configured_roles(tmp_path, monkeypatch):
