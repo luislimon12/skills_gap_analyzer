@@ -6,10 +6,10 @@ from src.resume.parse_resume import ResumeParseError, parse_resume
 
 
 def render_upload() -> str | None:
-    """Upload a PDF/DOCX resume and return its parsed plain text."""
+    """Upload a PDF/DOCX/TXT resume and return its parsed plain text."""
     uploaded_file = st.file_uploader(
         "Upload your resume",
-        type=["pdf", "docx"],
+        type=["pdf", "docx", "txt"],
         help="Google Docs resumes can be downloaded as PDF or DOCX before uploading.",
     )
     if uploaded_file is None:

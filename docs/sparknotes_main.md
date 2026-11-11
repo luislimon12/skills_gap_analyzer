@@ -13,7 +13,7 @@ tags: [project, skills-gap-analyzer, team-project, data-science]
 flowchart LR
     A[Job Posting APIs<br/>Adzuna · Greenhouse · Lever]
     B[Resume Upload<br/>PDF / DOCX]
-    TAX[Skill Taxonomy<br/>Lightcast + O*NET]
+    TAX[Skill Taxonomy<br/>Curated + O*NET]
     C[Postings Fetcher + Dedup<br/>Role 1]
     D[Resume Parser<br/>Role 2]
     E[Postings Store: SQLite<br/>Role 1]
@@ -60,8 +60,10 @@ flowchart LR
   score display, recommendations, and related-description browsing are wired.
 
 This is an end-to-end prototype, not a validated labor-market or student
-assessment tool. The local taxonomy is deliberately small; the Lightcast cache
-and O*NET mapping are not populated. Automated examples use synthetic postings.
+assessment tool. It covers any job type: the taxonomy is ~930 skills from two
+curated lists (tech, and non-tech/Canadian certifications) plus O*NET 30.0
+technologies for all occupations (Lightcast was dropped: it needs an approved
+account). Roles map to O*NET occupations via ~61k job titles. Automated examples use synthetic postings.
 See [[TEAM_HANDOFF]] for remaining implementation and validation tasks.
 
 ## Pipeline
@@ -82,7 +84,7 @@ See [[TEAM_HANDOFF]] for remaining implementation and validation tasks.
 | Adzuna API | Aggregated postings, Canada coverage | Free (~1,000 calls/mo) |
 | Greenhouse Job Board API | Full posting text, per named company | Free, no key |
 | Lever Postings API | Full posting text, per named company | Free, no key |
-| Lightcast Open Skills | 35k+ skill taxonomy | Free (register) |
+| O*NET 30.0 Technology Skills | Occupation-level software/tool lists (CC BY 4.0) | Free download, no key |
 | O\*NET | Occupation → skill baseline | Free |
 | Kaggle resume datasets | Dev/test resumes | Free |
 | JSearch (RapidAPI) — optional | Backup aggregator | Free tier, then ~$10–19/mo |
@@ -123,7 +125,7 @@ $$\text{FitScore} = \frac{\vec{r} \cdot \vec{d}}{\|\vec{r}\|\,\|\vec{d}\|} \;\ri
 | Frontend | [Streamlit](https://github.com/streamlit/streamlit) |
 
 > [!tip]+ Key technique: Data storage
-> Postings are stored in SQLite. Resumes are processed in memory and are not persisted by the dashboard. The starter skill taxonomy is a checked-in CSV; the Lightcast cache is currently empty. Single-file storage suits the prototype — upgrade only if scale requires it.
+> Postings are stored in SQLite. Resumes are processed in memory and are not persisted by the dashboard. The taxonomy is checked in as CSVs (curated `starter_skills.csv` + `general_skills.csv`, plus generated O*NET `onet_skills.csv`, `onet_mapping.csv.gz`, `onet_titles.csv.gz`). Single-file storage suits the prototype — upgrade only if scale requires it.
 
 ## Team of 4
 
@@ -163,5 +165,5 @@ Checkpoints: end of week 2 (clean data from Roles 1–2), end of week 4 (full pi
 **API docs (not GitHub)**
 - [Adzuna API](https://developer.adzuna.com/)
 - [Greenhouse Job Board API](https://developers.greenhouse.io/job-board.html)
-- [Lightcast Open Skills docs](https://docs.lightcast.dev/apis/skills)
+- [O\*NET database downloads](https://www.onetcenter.org/database.html) (Technology Skills file)
 - [O\*NET Web Services](https://services.onetcenter.org/)

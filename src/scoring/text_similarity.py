@@ -5,6 +5,71 @@ import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from src.scoring.skill_matcher import SkillMatcher
+
+
+def rank_postings_by_skills(
+    postings: list[dict],
+    include_skills: list[str],
+    exclude_skills: list[str] | None = None,
+    skill_weights: dict[str, float] | None = None,
+    matcher: SkillMatcher | None = None,
+) -> list[dict]:
+    """Rank postings by selected skill coverage, excluding any avoided skills.
+
+    The weighted score is the fraction of selected-skill weight found in a
+    posting. Results prioritize the number of matched skills, then that score.
+    """
+    if not postings or not include_skills:
+        return []
+
+    matcher = matcher or SkillMatcher()
+    include = list(dict.fromkeys(skill.casefold() for skill in include_skills))
+    exclude = {skill.casefold() for skill in (exclude_skills or [])}
+    weights = {
+        skill: max(0.0, float((skill_weights or {}).get(skill, 0.0)))
+        for skill in include
+    }
+    if not any(weights.values()):
+        weights = {skill: 1.0 for skill in include}
+    total_weight = sum(weights.values())
+    canonical_names = {skill.name.casefold(): skill.name for skill in matcher.skills}
+    results = []
+
+    for posting in postings:
+        text = "\n".join(
+            part for part in (posting.get("title"), posting.get("full_text")) if part
+        )
+        matched = {
+            skill.name.casefold(): skill.name
+            for skill in matcher.match(text)
+        }
+        if exclude.intersection(matched):
+            continue
+        matched_selected = [skill for skill in include if skill in matched]
+        if not matched_selected:
+            continue
+        results.append(
+            {
+                "posting": posting,
+                "matched_skills": [
+                    canonical_names.get(skill, matched[skill]) for skill in matched_selected
+                ],
+                "matched_count": len(matched_selected),
+                "total_skills": len(include),
+                "weighted_score": sum(weights[skill] for skill in matched_selected) / total_weight,
+            }
+        )
+
+    results.sort(
+        key=lambda result: (
+            -result["matched_count"],
+            -result["weighted_score"],
+            (result["posting"].get("title") or "").casefold(),
+            (result["posting"].get("company") or "").casefold(),
+        )
+    )
+    return results
 
 def search_postings(
     query_text: str,

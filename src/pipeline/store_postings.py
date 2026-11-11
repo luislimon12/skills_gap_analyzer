@@ -11,6 +11,9 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.pipeline.dedup_postings import make_dedup_key, postings_are_duplicates
+from src.pipeline.geography import normalize_geography
+
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "skills_gap.db"
 
 CREATE_POSTINGS_TABLE = """
@@ -26,8 +29,28 @@ CREATE TABLE IF NOT EXISTS postings (
     source_id TEXT,
     role TEXT,
     location TEXT,
+    country TEXT,
+    region TEXT,
+    dedup_key TEXT,
     url TEXT,
     is_truncated INTEGER DEFAULT 0,
+    fetched_at TEXT,
+    salary_min REAL,
+    salary_max REAL,
+    salary_is_predicted INTEGER DEFAULT 0,
+    contract_time TEXT,
+    category TEXT
+);
+"""
+
+# One row per Adzuna pull: Adzuna's total live-posting count and mean salary for the search.
+CREATE_MARKET_TABLE = """
+CREATE TABLE IF NOT EXISTS market_snapshots (
+    id INTEGER PRIMARY KEY,
+    role TEXT,
+    country TEXT,
+    total_count INTEGER,
+    mean_salary REAL,
     fetched_at TEXT
 );
 """
@@ -37,14 +60,24 @@ _ADDED_COLUMNS = {
     "source_id": "TEXT",
     "role": "TEXT",
     "location": "TEXT",
+    "country": "TEXT",
+    "region": "TEXT",
+    "dedup_key": "TEXT",
     "url": "TEXT",
     "is_truncated": "INTEGER DEFAULT 0",
     "fetched_at": "TEXT",
+    "salary_min": "REAL",
+    "salary_max": "REAL",
+    "salary_is_predicted": "INTEGER DEFAULT 0",
+    "contract_time": "TEXT",
+    "category": "TEXT",
 }
 
 COLUMNS = [
     "title", "company", "source", "posted_date", "requirement_level", "full_text",
-    "unique_hash", "source_id", "role", "location", "url", "is_truncated", "fetched_at",
+    "unique_hash", "source_id", "role", "location", "country", "region", "dedup_key",
+    "url", "is_truncated", "fetched_at",
+    "salary_min", "salary_max", "salary_is_predicted", "contract_time", "category",
 ]
 
 _UPSERT = f"""
@@ -54,6 +87,10 @@ ON CONFLICT(unique_hash) DO UPDATE SET
     source = excluded.source,
     source_id = excluded.source_id,
     url = excluded.url,
+    location = excluded.location,
+    country = excluded.country,
+    region = excluded.region,
+    dedup_key = excluded.dedup_key,
     full_text = excluded.full_text,
     is_truncated = excluded.is_truncated,
     fetched_at = excluded.fetched_at
@@ -74,14 +111,72 @@ def init_db(db_path: Path = DB_PATH) -> None:
         for name, col_type in _ADDED_COLUMNS.items():
             if name not in existing:
                 conn.execute(f"ALTER TABLE postings ADD COLUMN {name} {col_type}")
+        rows = conn.execute(
+            "SELECT id, title, company, location, country, region FROM postings "
+            "WHERE dedup_key IS NULL"
+        ).fetchall()
+        for row in rows:
+            conn.execute(
+                "UPDATE postings SET dedup_key = ? WHERE id = ?",
+                (make_dedup_key(dict(zip(
+                    ("id", "title", "company", "location", "country", "region"), row
+                ))), row[0]),
+            )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_postings_role ON postings(role)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_postings_dedup_key ON postings(dedup_key)")
+        conn.execute(CREATE_MARKET_TABLE)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def backfill_posting_geography(
+    db_path: Path = DB_PATH,
+    source_country_hints: dict[str, str] | None = None,
+) -> None:
+    """Fill country/region metadata on older rows when the source/location permits."""
+    source_country_hints = source_country_hints or {}
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, source, title, company, location, country, region "
+            "FROM postings WHERE COALESCE(country, '') = '' OR COALESCE(region, '') = ''"
+        ).fetchall()
+        for row in rows:
+            posting_id, source, title, company, location, old_country, old_region = row
+            country, region = normalize_geography(
+                location or "",
+                country_hint=old_country or source_country_hints.get(source or ""),
+                region_hint=old_region,
+            )
+            country = old_country or country
+            region = old_region or region
+            if country == old_country and region == old_region:
+                continue
+            posting = {
+                "title": title,
+                "company": company,
+                "location": location,
+                "country": country,
+                "region": region,
+            }
+            conn.execute(
+                "UPDATE postings SET country = ?, region = ?, dedup_key = ? WHERE id = ?",
+                (country, region, make_dedup_key(posting), posting_id),
+            )
         conn.commit()
     finally:
         conn.close()
 
 
 def _row_values(posting: dict, fetched_at: str) -> list:
-    row = {**posting, "is_truncated": int(bool(posting.get("is_truncated"))), "fetched_at": fetched_at}
+    row = {
+        **posting,
+        "dedup_key": make_dedup_key(posting),
+        "is_truncated": int(bool(posting.get("is_truncated"))),
+        "salary_is_predicted": int(bool(posting.get("salary_is_predicted"))),
+        "fetched_at": fetched_at,
+    }
     return [row.get(col) for col in COLUMNS]
 
 
@@ -92,7 +187,20 @@ def insert_postings(postings: list[dict], db_path: Path = DB_PATH) -> int:
     try:
         written = 0
         for posting in postings:
-            written += conn.execute(_UPSERT, _row_values(posting, fetched_at)).rowcount
+            row = dict(posting)
+            dedup_key = make_dedup_key(row)
+            if dedup_key:
+                conn.row_factory = sqlite3.Row
+                candidates = conn.execute(
+                    "SELECT * FROM postings WHERE dedup_key = ?", (dedup_key,)
+                ).fetchall()
+                for candidate_row in candidates:
+                    candidate = dict(candidate_row)
+                    if postings_are_duplicates(row, candidate):
+                        row["unique_hash"] = candidate["unique_hash"]
+                        break
+                conn.row_factory = None
+            written += conn.execute(_UPSERT, _row_values(row, fetched_at)).rowcount
         conn.commit()
         return written
     finally:
@@ -113,7 +221,42 @@ def load_postings(role: str | None = None, db_path: Path = DB_PATH) -> list[dict
             rows = conn.execute("SELECT * FROM postings ORDER BY id").fetchall()
         else:
             rows = conn.execute("SELECT * FROM postings WHERE role = ? ORDER BY id", (role,)).fetchall()
-        return [{**dict(r), "is_truncated": bool(r["is_truncated"])} for r in rows]
+        return [
+            {**dict(r), "is_truncated": bool(r["is_truncated"]),
+             "salary_is_predicted": bool(r["salary_is_predicted"])}
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+def insert_market_snapshot(role: str, country: str, total_count: int | None, mean_salary: float | None,
+                           db_path: Path = DB_PATH) -> None:
+    """Record Adzuna's live-posting count and mean salary for one role search."""
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "INSERT INTO market_snapshots (role, country, total_count, mean_salary, fetched_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (role, country, total_count, mean_salary,
+             datetime.now(timezone.utc).isoformat(timespec="seconds")),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def load_latest_market_snapshot(role: str, db_path: Path = DB_PATH) -> dict | None:
+    """Most recent Adzuna market snapshot for a role, or None if never pulled."""
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute(
+            "SELECT role, country, total_count, mean_salary, fetched_at FROM market_snapshots "
+            "WHERE role = ? ORDER BY id DESC LIMIT 1",
+            (role,),
+        ).fetchone()
+        return dict(row) if row else None
     finally:
         conn.close()
 

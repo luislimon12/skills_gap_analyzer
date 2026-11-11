@@ -1,12 +1,34 @@
 # Shared config - all roles read from this file.
 database_path: "data/skills_gap.db"
 
+# Example roles offered in the dashboard. Any other job title can be typed in
+# the dashboard; Adzuna searches it and O*NET occupations are matched automatically.
 target_roles:
   - "Data Analyst"
-  - "Data Engineer"
-  - "Data Scientist"
+  - "Software Developer"
+  - "Registered Nurse"
+  - "Personal Support Worker"
+  - "Electrician"
+  - "Accountant"
+  - "Administrative Assistant"
+  - "Retail Sales Associate"
+  - "Warehouse Associate"
+  - "AZ Driver"
+  - "Line Cook"
+  - "Early Childhood Educator"
 
 scoring:
-  method: "priority"   # "priority" or "cosine" - decided in week 3
+  method: "priority"   # GapScore = weighted_demand * (1 - has_skill)
+
+# Optional overrides: O*NET-SOC occupations for a role. Roles not listed here
+# are matched automatically from O*NET job titles (src/scoring/onet_baseline.py).
+# Codes: https://www.onetonline.org/
+onet_occupations:
+  "Data Analyst": ["15-2051.01", "15-2041.00", "13-1111.00"]
+  "Data Engineer": ["15-1243.01", "15-1243.00", "15-1242.00"]
+  "Data Scientist": ["15-2051.00", "15-2041.00"]
+  "Business Intelligence Analyst": ["15-2051.01"]
+  "Machine Learning Engineer": ["15-2051.00", "15-1252.00"]
+  "Software Developer": ["15-1252.00", "15-1253.00", "15-1254.00"]
 
 # API keys are NOT stored here - they go in .env (see .env.example)

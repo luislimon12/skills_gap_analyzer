@@ -97,9 +97,9 @@ def test_matcher_is_case_insensitive_boundary_aware_and_uses_aliases():
 
 
 def test_matcher_reports_useful_evidence():
-    mentions = find_skill_mentions("Built dashboards with Tableau.")
-    assert [mention["skill"] for mention in mentions] == ["Tableau"]
-    assert "Tableau" in mentions[0]["evidence"]
+    mentions = {m["skill"]: m for m in find_skill_mentions("Built dashboards with Tableau.")}
+    assert set(mentions) == {"Tableau", "Dashboards"}
+    assert "Tableau" in mentions["Tableau"]["evidence"]
 
 
 def test_recency_weights_and_unknown_date_fallback():
@@ -158,7 +158,7 @@ def test_end_to_end_analysis_returns_gaps_fit_and_experience_evidence():
     skills = {row["skill"]: row for row in analysis["skills"]}
 
     assert analysis["postings_count"] == 3
-    assert analysis["resume_skills"] == ["Python", "SQL"]
+    assert analysis["resume_skills"] == ["Python", "SQL", "Data Pipelines"]
     assert 0 < analysis["fit_score"] < 100
     assert skills["Python"]["has_skill"] is True
     assert skills["Python"]["gap_score"] == 0.0
@@ -184,3 +184,46 @@ def test_tfidf_similarity_ranks_relevant_postings_and_keyword_search_is_bounded(
     assert results[0]["similarity"] > results[1]["similarity"]
     assert results[0]["keyword_matches"] == ["Python"]
     assert results[1]["keyword_matches"] == ["JavaScript"]
+
+
+def test_rank_postings_by_skills_prioritizes_coverage_and_excludes_avoided_skills():
+    from src.scoring.text_similarity import rank_postings_by_skills
+
+    postings = [
+        {"title": "Data Analyst", "company": "A", "full_text": "Python and SQL experience."},
+        {"title": "Python Analyst", "company": "B", "full_text": "Python experience."},
+        {"title": "SQL Analyst", "company": "C", "full_text": "SQL experience."},
+    ]
+
+    results = rank_postings_by_skills(
+        postings,
+        include_skills=["Python", "SQL"],
+        exclude_skills=["SQL"],
+        skill_weights={"python": 0.7, "sql": 0.3},
+    )
+
+    assert [row["posting"]["company"] for row in results] == ["B"]
+    assert results[0]["matched_skills"] == ["Python"]
+    assert results[0]["matched_count"] == 1
+    assert results[0]["total_skills"] == 2
+    assert results[0]["weighted_score"] == pytest.approx(0.7)
+
+
+def test_rank_postings_by_skills_ranks_more_matches_before_weighted_score():
+    from src.scoring.text_similarity import rank_postings_by_skills
+
+    postings = [
+        {"title": "Data Analyst", "full_text": "Python and SQL experience."},
+        {"title": "Python Analyst", "full_text": "Python experience."},
+    ]
+
+    results = rank_postings_by_skills(
+        postings,
+        include_skills=["Python", "SQL"],
+        skill_weights={"python": 0.2, "sql": 0.8},
+    )
+
+    assert results[0]["matched_count"] == 2
+    assert results[0]["weighted_score"] == pytest.approx(1.0)
+    assert results[1]["matched_count"] == 1
+    assert results[1]["weighted_score"] == pytest.approx(0.2)
