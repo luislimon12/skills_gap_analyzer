@@ -54,7 +54,8 @@ def parse_adzuna_job(item: dict, country_code: str) -> Job | None:
     return Job(
         source="adzuna",
         external_id=external_id,
-        title=clean_text(item.get("title")),
+        # Adzuna highlights matched search terms with <strong> in titles too.
+        title=" ".join(html_to_text(item.get("title")).split()),
         company=clean_text((item.get("company") or {}).get("display_name")),
         location=location,
         country=country,

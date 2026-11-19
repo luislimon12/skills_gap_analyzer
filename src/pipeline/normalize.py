@@ -111,7 +111,7 @@ def normalize_adzuna(raw: dict, role: str, country: str = "ca") -> list[dict]:
             "source": "adzuna",
             "source_id": str(job.get("id", "")),
             "role": role,
-            "title": clean_text(job.get("title")),
+            "title": " ".join(html_to_text(job.get("title")).split()),  # Adzuna bolds search terms
             "company": clean_text((job.get("company") or {}).get("display_name")),
             "location": location,
             "country": country_name,
