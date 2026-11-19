@@ -17,7 +17,7 @@ status: complete-prototype
 
 > [!summary] TL;DR
 > Upload a resume, pick or type **any** job title, and the app tells you which skills employers are asking for that your resume doesn't show.
-> - **Postings:** Adzuna and USAJOBS APIs, the monthly Canada Job Bank CSV, and optional Greenhouse/Lever company boards.
+> - **Postings:** collected hourly from the Adzuna API by the ingestion worker (`src/worker/`); the legacy pull also supports the monthly Canada Job Bank CSV and Greenhouse/Lever boards.
 > - **Skills:** ~**934** skills from two hand-curated lists + **O\*NET 30.0** (free, CC BY 4.0). **Lightcast is no longer needed.**
 > - **Any job:** roles are matched to O\*NET occupations through ~**61,000** job titles (tech, healthcare, trades, retail, logistics, office…).
 > - **Output:** role fit %, ranked skill gaps with confidence intervals, salary context, recurring requirements the taxonomy misses, and an occupation baseline of tools & technologies.
@@ -39,14 +39,12 @@ flowchart TD
     subgraph P1["1 · Postings pipeline — src/pipeline"]
         direction TB
         ADZ[Adzuna API<br/>search + count + mean salary]
-        USA[USAJOBS Search API<br/>U.S. federal postings]
         JB[Canada Job Bank<br/>monthly open-data CSV]
         ATS[Greenhouse / Lever boards<br/>optional, full text]
         NORM[normalize.py<br/>one posting shape, clean text,<br/>salary fields]
         DEDUP[dedup_postings.py<br/>title + company + date window]
         DB[(SQLite<br/>postings + market_snapshots)]
         ADZ --> NORM
-        USA --> NORM
         JB --> NORM
         ATS --> NORM
         NORM --> DEDUP --> DB
@@ -203,7 +201,7 @@ mindmap
 
 ```text
 skills_gap_analyzer/
-├── .env.example                 # Optional Adzuna / USAJOBS credentials (real keys go in .env)
+├── .env.example                 # Adzuna keys, DATABASE_URL, secrets (real values go in .env)
 ├── README.md
 ├── requirements.txt
 ├── pytest.ini
@@ -219,7 +217,7 @@ skills_gap_analyzer/
 │   ├── common/text.py           # clean_text / html_to_text (shared by postings + resumes)
 │   ├── pipeline/
 │   │   ├── config_postings.yaml # Adzuna country, pages, max_days_old, where, boards, title filter
-│   │   ├── fetch_postings.py    # Adzuna, USAJOBS, Canada Job Bank, Greenhouse, Lever
+│   │   ├── fetch_postings.py    # Adzuna, Canada Job Bank, Greenhouse, Lever (legacy pull)
 │   │   ├── normalize.py         # one posting dict shape incl. salary fields
 │   │   ├── dedup_postings.py    # cross-source duplicate removal
 │   │   ├── store_postings.py    # SQLite: postings + market_snapshots
@@ -258,7 +256,7 @@ skills_gap_analyzer/
 ## 2. Setup and running
 
 > [!tip] Requirements
-> Python 3.10+ (tested on **3.12**). Adzuna and USAJOBS API credentials are optional sources.
+> Python 3.11+ (tested on **3.12**). Adzuna API credentials are needed for the worker.
 
 1. Unzip / clone the project.
 2. Launch with one click: double-click `run.bat` on Windows, `run.command` on macOS, or run `./run.sh` on Linux. The launcher creates or reuses the virtual environment, installs dependencies, creates `.env` if needed, and starts the dashboard.
@@ -266,10 +264,8 @@ skills_gap_analyzer/
    ```bash
    ADZUNA_APP_ID=your_id
    ADZUNA_APP_KEY=your_key
-   USAJOBS_API_KEY=your_usajobs_key
-   USAJOBS_USER_AGENT=your_registered_email
    ```
-   Get Adzuna credentials from https://developer.adzuna.com/ and USAJOBS credentials from https://developer.usajobs.gov/. The Canada Job Bank monthly open-data CSV needs no key.
+   Get Adzuna credentials from https://developer.adzuna.com/ The Canada Job Bank monthly open-data CSV needs no key.
 4. To install or run manually instead:
    ```bash
    python -m venv .venv
@@ -326,7 +322,6 @@ python -m pytest                                    # run all 145 tests
 | Source | Used for | Access | License / terms |
 |---|---|---|---|
 | **Adzuna API** | Live postings, total live count, mean salary, salary ranges | Free key (`ADZUNA_APP_ID`, `ADZUNA_APP_KEY`) | Show "Jobs by Adzuna" attribution (done in footer) |
-| **USAJOBS** | U.S. federal postings and descriptions | Free API key (`USAJOBS_API_KEY`) and registered email (`USAJOBS_USER_AGENT`) | Official USAJOBS Search API |
 | **Canada Job Bank** | Canadian postings, NOC, location, vacancy, wage and employment fields | Monthly open-data CSV; no key | Structured posting data only; no full job descriptions |
 | Greenhouse / Lever | Optional full-text postings for chosen companies | No key | Public job board APIs |
 | **O\*NET 30.0** — Technology Skills, Tools Used, Occupation Data, Alternate Titles, Reported Titles | Technologies, tools, ~61k job titles for all 1,016 occupations | Free download | **CC BY 4.0** — attribution in README + dashboard footer |
@@ -546,7 +541,6 @@ Notable regression checks: ambiguous terms (R&D, C-suite, "excel"), benefits boi
 
 > [!warning] Interpret results as estimates
 > - **Adzuna excerpts**: descriptions are ~500 characters, so demand from Adzuna-only samples is a **lower bound**.
-> - **USAJOBS**: the API covers U.S. federal positions only, not state, local, or private-sector jobs.
 > - **Canada Job Bank**: this is a monthly snapshot, not real-time. It includes structured fields but no full job descriptions, limiting description-based skill matching.
 > - **Small samples**: fewer than ~20 postings → wide intervals (the dashboard warns).
 > - **Title filter**: use employer wording ("AZ Driver", not "AZ Truck Driver"), or disable it for broad roles.

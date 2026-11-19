@@ -2,16 +2,21 @@
 
 Upload a resume, pick a target role, and see which in-demand skills you're
 missing. Works for any job: tech, healthcare, skilled trades, retail,
-hospitality, logistics, office, finance, education, and more. The app pulls
-live postings from Adzuna, the monthly Canada Job Bank open-data CSV,
-USAJOBS (when configured), and optional Greenhouse/Lever company boards,
-parses a PDF/DOCX/TXT resume, matches both against a skill taxonomy, and shows
-posting-based demand, skill gaps, a fit score, salary context, recurring
-requirements the taxonomy doesn't cover, and an O*NET occupation baseline.
+hospitality, logistics, office, finance, education, and more.
+
+A scheduled **ingestion worker** collects postings from Adzuna every hour into
+a database (SQLite locally, PostgreSQL in production), tracks which postings
+are still listed, and hides closed ones. The **web app** only reads that
+database: it parses a PDF or DOCX resume, matches it against a skill taxonomy,
+and shows posting-based demand, skill gaps, a fit score, salary context,
+recurring requirements the taxonomy doesn't cover, and an O*NET occupation
+baseline. Resume data is stored as extracted skills only and deleted after 30 days.
 
 **Start here:** [`docs/Skills Gap Analyzer - Complete Guide.md`](<docs/Skills Gap Analyzer - Complete Guide.md>)
 (Obsidian note with process diagrams, tree map, setup, scoring, and maintenance).
 SVG diagrams are in [`docs/diagrams/`](docs/diagrams/).
+Production setup: [`deploy/README.md`](deploy/README.md). Plan progress:
+[`docs/PRODUCTION_PLAN_STATUS.md`](docs/PRODUCTION_PLAN_STATUS.md).
 
 See [`docs/sparknotes_main.md`](docs/sparknotes_main.md) for the architecture,
 data flow, and scoring formulas, and [`docs/TEAM_HANDOFF.md`](docs/TEAM_HANDOFF.md)
@@ -20,61 +25,62 @@ for module contracts.
 ## Quick start
 
 1. Clone or download the repo.
-2. Launch with one click:
-   - Windows: double-click `run.bat`.
-   - macOS: double-click `run.command`.
-   - Linux: run `./run.sh` from the project folder.
+2. Copy `.env.example` to `.env` and add your Adzuna keys from
+   <https://developer.adzuna.com/> (`ADZUNA_APP_ID`, `ADZUNA_APP_KEY`).
+3. Fill the database once (later the scheduler does this every hour):
+   ```bash
+   python -m venv .venv
+   # Windows: .venv\Scripts\activate
+   # macOS/Linux: source .venv/bin/activate
+   pip install -r requirements.txt
+   python -m src.worker run
+   python -m src.worker status
+   ```
+4. Launch the app with one click: `run.bat` (Windows), `run.command` (macOS),
+   or `./run.sh` (Linux), or run `streamlit run src/dashboard/app.py`.
 
-The launcher reuses an existing `.venv` or `venv`, or creates `.venv` if
-needed. It installs dependencies on first run (and when `requirements.txt`
-changes), creates `.env` from `.env.example` if needed, and starts the dashboard
-in your browser. Python 3.10 or later must be installed. Optional Adzuna and
-USAJOBS API keys can be added to `.env`; the dashboard can still start without them.
+In the sidebar, pick a role and upload your resume. There is no "fetch" button:
+postings come from the database the worker fills.
 
-To set up or start the project manually instead:
-```bash
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-# macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-Copy `.env.example` to `.env` and fill in your Adzuna keys from
-<https://developer.adzuna.com/> (`ADZUNA_APP_ID`, `ADZUNA_APP_KEY`).
-The public Canada Job Bank CSV needs no key. For U.S. federal postings,
-register at <https://developer.usajobs.gov/> and add `USAJOBS_API_KEY` plus
-your registered email as `USAJOBS_USER_AGENT`. Then start the dashboard:
+## Ingestion worker
 
 ```bash
-streamlit run src/dashboard/app.py
+python -m src.worker run        # one cycle; schedule it hourly (deploy/README.md)
+python -m src.worker status     # jobs, backfill progress, request use
+python -m src.worker report --days 1   # failed runs
+python -m src.worker cleanup    # delete resumes past their deletion date
 ```
 
-In the sidebar, pick a role (or type any job title, e.g. "Dental Hygienist" or
-"PSW"), upload your resume, and click **Fetch latest postings for this role**.
+Each cycle loads pending work, queries the source, normalises and upserts the
+results, and writes a `fetch_runs` row (the ingestion audit log). Settings are
+in [`config/ingestion.yaml`](config/ingestion.yaml):
 
-You can also pull postings from the command line:
+- **Slices**: one per country and search term, highest value first. Each is
+  backfilled newest-first, page by page, and marked complete when a page comes
+  back short. Completed slices switch to incremental mode (new postings only).
+- **Request budget**: the worker stops before the daily, weekly or monthly
+  quota is used up. Backfill gets about 70% of the daily quota; the rest is for
+  hourly updates and retries. Each run logs where backfill stopped.
+- **Lifecycle**: every fetch updates `last_seen_at`. After each daily full
+  re-scan, unseen jobs become `stale`; after `stale_days_before_closed` days
+  they become `closed`. A capped daily link check closes postings whose URL
+  returns 404/410. Closed jobs that reappear are reactivated and logged.
+- **Retries**: transient errors are retried with backoff; rejected keys fail the
+  run cleanly and send an alert email (if SMTP is configured).
+- **Sources**: every board implements `JobSource.fetch(criteria)` and returns
+  normalised `Job` objects (`src/sources/`). Adzuna is live; LoopCV is a stub
+  until its API is confirmed. With `loopcv.enabled`, LoopCV is primary and
+  Adzuna is the fallback when LoopCV fails, times out, or returns nothing.
+- Raw API responses are kept 7 days in `data/raw/api/` for debugging.
 
-```bash
-python -m src.pipeline.run_pipeline --roles "Data Analyst" --max-pages 2
-```
+Schema changes go through Alembic (`alembic revision -m "..."`, then
+`python -m src.db.migrate`). The worker and the app migrate on start.
 
-Each Adzuna page is one API call (50 postings). The free tier allows roughly
-1,000 calls a month; `max_pages_per_role`, `max_days_old`, `country`, and an
-optional `where` location filter live in `src/pipeline/config_postings.yaml`.
-USAJOBS uses its official Search API at
-<https://data.usajobs.gov/api/Search>; its page limit and request delay are
-configured under `usajobs` in that same file. The API key is issued through
-the [USAJOBS Developer site](https://developer.usajobs.gov/).
+### Legacy multi-source pull
 
-Canada Job Bank data is downloaded from the monthly CSV resources in the
-official [Open Government dataset](https://open.canada.ca/data/en/dataset/ea639e28-c0fc-48bf-b5dd-b8899bd43072).
-The pipeline uses its metadata endpoint to find the newest English CSV resource
-(the dataset also publishes a French file).
-The dataset is updated monthly, not in real time; it includes Job Bank
-postings and eligible postings shared by external provincial/private boards.
-It provides structured job, NOC, location, vacancy, wage and employment data,
-but not full job descriptions. This source is controlled by
-`canada_job_bank.enabled` in `config_postings.yaml`.
+`python -m src.pipeline.run_pipeline` still pulls Adzuna, the monthly Canada
+Job Bank CSV, and Greenhouse/Lever boards into the older `postings` table for
+experiments. The web app no longer reads that table.
 
 Use the **Country** and **Province / state** selectors above the results to
 filter the stored posting sample before analysis. These filters do not fetch
@@ -158,12 +164,19 @@ source limitation and warns when the sample is under 20 postings.
 ## Tests
 
 ```bash
-python -m pytest
+python -m pytest                                   # SQLite
+TEST_DATABASE_URL=postgresql+psycopg://user:pass@localhost/skills_gap_test python -m pytest   # PostgreSQL
 ```
 
-Tests need neither API keys nor network access. They use synthetic Adzuna-,
-Greenhouse-, Lever-, USAJOBS- and Job Bank-shaped responses and run them
-through the real pipeline code.
+The suite (about 60 tests in `tests/`) never calls a real API: `tests/conftest.py`
+blocks HTTP and removes API keys, and the Adzuna adapter is tested against a
+recorded response. It covers the adapters and fallback rule, deduplication,
+the stale/closed/reactivated lifecycle, the request budget and backfill, retries,
+the single-instance lock, 30-day resume deletion, upload checks, rate limits,
+the rendered web pages, and a full worker run against a copy of the database.
+
+GitHub Actions (`.github/workflows/tests.yml`) runs it on every push twice:
+once on SQLite and once on PostgreSQL 16, matching the Oracle VM setup.
 
 ## Known limits
 
@@ -174,7 +187,6 @@ through the real pipeline code.
   is not a complete feed of every Canadian vacancy. The CSV omits employer
   names and full descriptions, so cross-source deduplication against it is
   intentionally conservative. Adzuna remains a separate live Canada sample.
-- USAJOBS is the official U.S. federal source and requires an API key.
 - Deduplication first uses a source's stable posting ID or canonical URL.
   Cross-source fallback matching requires the same normalized title,
   employer, country/region/location, and nearby posting dates; separate
@@ -203,7 +215,7 @@ DO NOT COMMIT THE KEYS FOR THE LOVE OF GOD
 | Role | Owns | Folder |
 |---|---|---|
 | 1 — Data Pipeline | Postings fetch, dedup, storage | `src/pipeline/` |
-| 2 — Resume Ingestion | PDF/DOCX/TXT parsing | `src/resume/` |
+| 2 — Resume Ingestion | PDF/DOCX parsing, upload validation | `src/resume/` |
 | 3 — Scoring Engine | Taxonomy matcher, scoring math | `src/scoring/` |
 | 4 — Dashboard | Streamlit UI, wiring it together | `src/dashboard/` |
 
@@ -215,7 +227,7 @@ source of truth for those exclusions.
 
 - Job postings: [Jobs by Adzuna](https://www.adzuna.ca), [Canada Job Bank
   Open Government dataset](https://open.canada.ca/data/en/dataset/ea639e28-c0fc-48bf-b5dd-b8899bd43072),
-  and [USAJOBS](https://www.usajobs.gov/).
+  (legacy pull only).
 - This project includes information from the
   [O*NET 30.0 Database](https://www.onetcenter.org/database.html) by the U.S.
   Department of Labor, Employment and Training Administration (USDOL/ETA).

@@ -1,5 +1,5 @@
 """
-Role 1 - Component A/C: pull postings from Adzuna, government feeds,
+Role 1 - Component A/C: pull postings from Adzuna, the Canada Job Bank feed,
 Greenhouse, and Lever.
 
 Fetchers return raw source data. Turning it into postings happens in
@@ -42,10 +42,6 @@ class AdzunaError(requests.RequestException):
     """Adzuna request failed. The message never contains the app_id/app_key."""
 
 
-class USAJobsError(requests.RequestException):
-    """USAJOBS request failed without exposing credentials."""
-
-
 _KEY_PARAMS = re.compile(r"(app_id|app_key)=[^&\s'\"]+")
 
 
@@ -56,50 +52,6 @@ def _redact(message: str) -> str:
 
 def adzuna_keys_configured() -> bool:
     return bool(os.getenv("ADZUNA_APP_ID") and os.getenv("ADZUNA_APP_KEY"))
-
-
-def usajobs_credentials_configured() -> bool:
-    return bool(os.getenv("USAJOBS_API_KEY") and os.getenv("USAJOBS_USER_AGENT"))
-
-
-def fetch_usajobs_postings(role: str, page: int = 1, results_per_page: int = 50) -> dict:
-    """Fetch one page from the official USAJOBS Search API."""
-    api_key = os.getenv("USAJOBS_API_KEY")
-    user_agent = os.getenv("USAJOBS_USER_AGENT")
-    if not api_key or not user_agent:
-        raise RuntimeError(
-            "USAJOBS requires USAJOBS_API_KEY and USAJOBS_USER_AGENT. "
-            "Register at https://developer.usajobs.gov/."
-        )
-
-    headers = {
-        "Host": "data.usajobs.gov",
-        "User-Agent": user_agent,
-        "Authorization-Key": api_key,
-    }
-    params = {
-        "Keyword": role,
-        "ResultsPerPage": results_per_page,
-        "Page": page,
-    }
-    try:
-        response = _SESSION.get(
-            "https://data.usajobs.gov/api/Search",
-            headers=headers,
-            params=params,
-            timeout=TIMEOUT,
-        )
-    except requests.RequestException as error:
-        message = str(error).replace(api_key, "REDACTED").replace(user_agent, "REDACTED")
-        raise USAJobsError(f"Could not reach the USAJOBS API: {message}") from None
-    if response.status_code in (401, 403):
-        raise USAJobsError(
-            f"USAJOBS rejected the API credentials (HTTP {response.status_code}). "
-            "Check USAJOBS_API_KEY and USAJOBS_USER_AGENT in .env."
-        )
-    if not response.ok:
-        raise USAJobsError(f"USAJOBS returned HTTP {response.status_code} for '{role}' page {page}.")
-    return response.json()
 
 
 class CanadaJobBankError(requests.RequestException):

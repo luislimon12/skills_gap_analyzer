@@ -1,0 +1,22 @@
+# Streamlit web app, bound to localhost only; Cloudflare Tunnel is the only way in.
+[Unit]
+Description=Skills Gap Analyzer web app
+After=network-online.target postgresql.service
+
+[Service]
+User=skillsgap
+Group=skillsgap
+WorkingDirectory=/opt/skills_gap_analyzer
+EnvironmentFile=/opt/skills_gap_analyzer/.env
+Environment=HOME=/opt/skills_gap_analyzer/data/home
+ExecStart=/opt/skills_gap_analyzer/.venv/bin/python -m streamlit run src/dashboard/app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/skills_gap_analyzer/data
+
+[Install]
+WantedBy=multi-user.target

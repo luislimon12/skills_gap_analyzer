@@ -1,13 +1,19 @@
 """Shared configuration and data-loading helpers for the Streamlit dashboard."""
 
+import os
 from pathlib import Path
 
 import yaml
+from sqlalchemy.engine import Engine
 
-from src.pipeline.store_postings import init_db, load_postings
+from src.db.engine import get_engine
+from src.db.jobs_repo import job_status_counts, latest_market_stats, load_jobs_for_role
+from src.db.migrate import upgrade
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SETTINGS_PATH = PROJECT_ROOT / "config" / "settings.yaml"
+
+_MIGRATED: set[str] = set()
 
 
 def load_settings(path: Path = SETTINGS_PATH) -> dict:
@@ -39,10 +45,50 @@ def resolve_database_path(settings: dict, project_root: Path = PROJECT_ROOT) -> 
     return database_path
 
 
-def load_role_postings(role: str, database_path: Path) -> list[dict]:
-    """Ensure the shared database exists, then load one role's postings."""
-    init_db(database_path)
-    return load_postings(role=role, db_path=database_path)
+def database_engine(database: "Path | str | Engine | None" = None) -> Engine:
+    """Engine for DATABASE_URL, an explicit URL, or a SQLite file path. Schema is migrated once."""
+    if isinstance(database, Engine):
+        engine = database
+    else:
+        url = None
+        if database is None:
+            url = os.getenv("DATABASE_URL") or None
+        elif "://" in str(database):
+            url = str(database)
+        else:
+            path = Path(database)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            url = f"sqlite:///{path.as_posix()}"
+        engine = get_engine(url)
+    key = str(engine.url)
+    if key not in _MIGRATED:
+        upgrade(engine)
+        _MIGRATED.add(key)
+    return engine
+
+
+def settings_engine(settings: dict) -> Engine:
+    """DATABASE_URL when set (production), otherwise the SQLite file in settings.database_path."""
+    if os.getenv("DATABASE_URL"):
+        return database_engine(None)
+    return database_engine(resolve_database_path(settings))
+
+
+def load_role_postings(role: str, database, include_closed: bool = False) -> list[dict]:
+    """Jobs collected by the worker for one role. Closed jobs are hidden unless asked for."""
+    engine = database_engine(database)
+    with engine.connect() as conn:
+        return load_jobs_for_role(conn, role, include_closed=include_closed)
+
+
+def database_job_counts(database) -> dict[str, int]:
+    with database_engine(database).connect() as conn:
+        return job_status_counts(conn)
+
+
+def role_market_stats(role: str, database) -> list[dict]:
+    with database_engine(database).connect() as conn:
+        return latest_market_stats(conn, role)
 
 
 def rank_gap_scores(gap_scores: list[dict], limit: int | None = None) -> list[dict]:

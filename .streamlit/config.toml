@@ -1,0 +1,21 @@
+# Production-safe Streamlit settings (production plan, section 9).
+
+[server]
+# Reachable only from this machine; Cloudflare Tunnel forwards public traffic here.
+address = "127.0.0.1"
+port = 8501
+# Upload cap in MB (the app also checks 5 MB and the file signature).
+maxUploadSize = 5
+enableXsrfProtection = true
+enableCORS = true
+
+[client]
+# No stack traces or file paths on public error pages.
+showErrorDetails = false
+toolbarMode = "viewer"
+
+[browser]
+gatherUsageStats = false
+
+[logger]
+level = "warning"

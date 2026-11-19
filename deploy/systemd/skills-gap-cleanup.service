@@ -1,0 +1,18 @@
+# Daily resume deletion (also runs inside every hourly worker cycle; this is the backstop).
+[Unit]
+Description=Skills Gap Analyzer 30-day resume cleanup
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=skillsgap
+Group=skillsgap
+WorkingDirectory=/opt/skills_gap_analyzer
+EnvironmentFile=/opt/skills_gap_analyzer/.env
+Environment=HOME=/opt/skills_gap_analyzer/data/home
+ExecStart=/opt/skills_gap_analyzer/.venv/bin/python -m src.worker cleanup
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/skills_gap_analyzer/data

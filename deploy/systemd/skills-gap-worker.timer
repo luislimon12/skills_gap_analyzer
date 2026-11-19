@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Skills Gap Analyzer worker every hour
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=120
+# Run after a missed start (e.g. the VM was rebooted), so an hour isn't skipped.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

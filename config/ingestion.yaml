@@ -1,0 +1,78 @@
+# Ingestion worker settings (python -m src.worker run). API keys live in .env, not here.
+# Values marked CONFIRM depend on decisions in the production plan, section 1.
+
+sources:
+  adzuna:
+    # Highest-value countries first. CONFIRM your Adzuna plan covers both.
+    countries: ["ca", "us"]
+    results_per_page: 50          # CONFIRM maximum results per page on your plan
+    title_filter: true            # drop results whose title lacks a word of the search term
+    request_delay_seconds: 3      # Adzuna allows about 25 calls/minute
+    timeout_seconds: 15
+  loopcv:
+    # Off until LoopCV replies. When on, LoopCV is primary and Adzuna is the fallback.
+    enabled: false
+
+# Search terms, highest value first (earlier = backfilled sooner).
+# Leave empty to use target_roles from config/settings.yaml.
+queries:
+  - "Data Analyst"
+  - "Software Developer"
+  - "Registered Nurse"
+  - "Personal Support Worker"
+  - "Electrician"
+  - "Accountant"
+  - "Administrative Assistant"
+  - "Retail Sales Associate"
+  - "Warehouse Associate"
+  - "AZ Driver"
+  - "Line Cook"
+  - "Early Childhood Educator"
+
+quota:
+  # CONFIRM against your Adzuna plan. The worker never goes over these.
+  daily_requests: 250
+  weekly_requests: 1000
+  monthly_requests: 2500
+  safety_margin: 0.95     # use at most 95% of each quota
+  backfill_share: 0.70    # backfill + re-scans get 70% of the daily quota; the rest is hourly updates and retries
+
+backfill:
+  max_days_old: 90           # time window of each slice
+  max_pages_per_slice: 20    # CONFIRM Adzuna's maximum page depth
+  rescan_interval_hours: 24  # full re-scan of each slice (needed to notice removed jobs)
+
+incremental:
+  interval_hours: 1          # check each completed slice for new postings this often (budget permitting)
+  max_pages: 2
+
+lifecycle:
+  # CONFIRM (section 1): days a job can be missing from re-scans before it is closed.
+  # With one re-scan a day, 3 means "missing from 3 daily re-scans".
+  stale_days_before_closed: 3
+
+link_check:
+  enabled: true
+  daily_cap: 100
+  timeout_seconds: 10
+  delay_seconds: 1
+
+retry:
+  attempts: 3
+  backoff_seconds: 2         # 2s, 4s, 8s ...
+
+raw_responses:
+  keep: true
+  retention_days: 7
+  dir: "data/raw/api"
+
+resumes:
+  retention_days: 30
+  # false = option (a): parse, keep extracted skills only, discard the file (lower risk).
+  # true  = option (b): also keep the file, encrypted with ENCRYPTION_KEY, for retention_days.
+  store_file: false
+  storage_dir: "data/private/resumes"
+
+alerts:
+  disk_free_min_percent: 10
+  min_hours_between_emails: 6
