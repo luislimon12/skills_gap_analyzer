@@ -35,6 +35,16 @@ def detect_kind(data: bytes) -> str | None:
 
 
 def _check_docx(data: bytes) -> None:
+    try:
+        _inspect_docx(data)
+    except (zipfile.BadZipFile, zipfile.LargeZipFile, KeyError, RuntimeError, EOFError, ValueError) as error:
+        # Damaged member data (bad CRC, truncated entry) surfaces only when read.
+        if isinstance(error, UploadRejected):
+            raise
+        raise UploadRejected("This DOCX file is damaged and can't be read.") from None
+
+
+def _inspect_docx(data: bytes) -> None:
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         members = archive.infolist()
         if len(members) > _MAX_DOCX_MEMBERS:

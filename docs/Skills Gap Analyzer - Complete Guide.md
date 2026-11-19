@@ -112,25 +112,24 @@ flowchart TD
 
 ```mermaid
 sequenceDiagram
+    participant W as Worker (hourly)
+    participant A as Adzuna API
+    participant DB as Database
     actor S as Student
     participant D as Dashboard
-    participant P as Pipeline
-    participant A as Adzuna API
-    participant DB as SQLite
     participant SC as Scoring
 
-    S->>D: Choose/type role, upload resume
+    loop every hour (scheduler, within the request budget)
+        W->>A: GET /jobs/{country}/search/{page} (newest first)
+        A-->>W: results + count + mean salary
+        W->>DB: upsert jobs, update last_seen_at, log fetch_runs
+        W->>DB: re-scan → stale → closed, link check
+    end
+    S->>D: Choose role, upload resume (PDF/DOCX)
+    D->>DB: store extracted skills only (deleted after 30 days)
     D->>SC: match_occupations(role)
     SC-->>D: O*NET occupations (editable picker)
-    S->>D: Click "Fetch latest postings"
-    D->>P: run(roles=[role], max_pages)
-    loop up to max_pages
-        P->>A: GET /jobs/ca/search/{page}
-        A-->>P: results + count + mean salary
-    end
-    P->>P: normalize → title filter → dedup
-    P->>DB: upsert postings, insert market snapshot
-    D->>DB: load_postings(role), latest snapshot
+    D->>DB: load listed jobs for role, latest market stats
     D->>SC: analyze_role(resume, postings)
     SC-->>D: fit, demand, Wilson CI, GapScores
     D->>SC: discover_phrases(...), onet_baseline(...)
@@ -259,35 +258,35 @@ skills_gap_analyzer/
 > Python 3.11+ (tested on **3.12**). Adzuna API credentials are needed for the worker.
 
 1. Unzip / clone the project.
-2. Launch with one click: double-click `run.bat` on Windows, `run.command` on macOS, or run `./run.sh` on Linux. The launcher creates or reuses the virtual environment, installs dependencies, creates `.env` if needed, and starts the dashboard.
-3. Configure optional sources in `.env` in the project root:
+2. Add your Adzuna keys to `.env` in the project root (copy `.env.example`). The ingestion worker needs them; the dashboard does not call any API:
    ```bash
    ADZUNA_APP_ID=your_id
    ADZUNA_APP_KEY=your_key
    ```
-   Get Adzuna credentials from https://developer.adzuna.com/ The Canada Job Bank monthly open-data CSV needs no key.
-4. To install or run manually instead:
+   Get Adzuna credentials from https://developer.adzuna.com/.
+3. Install and fill the database once (afterwards the scheduler runs the worker every hour, see `deploy/README.md`):
    ```bash
    python -m venv .venv
    .venv\Scripts\activate            # macOS/Linux: source .venv/bin/activate
    pip install -r requirements.txt
-   streamlit run src/dashboard/app.py
+   python -m src.worker run
+   python -m src.worker status
    ```
-5. In the sidebar: pick a role (or **Other** → type any title), upload a resume, click **Fetch latest postings for this role**.
+4. Start the dashboard: double-click `run.bat` (Windows) / `run.command` (macOS), run `./run.sh` (Linux), or `streamlit run src/dashboard/app.py`.
+5. In the sidebar: pick one of the tracked roles and upload a resume (PDF or DOCX). There is no fetch button: postings come from the database the worker fills.
 
 Command-line alternatives:
 
 ```bash
-python -m src.pipeline.run_pipeline --roles "Registered Nurse" "Electrician" --max-pages 2
+python -m src.worker report --days 1               # failed worker runs
+python -m src.pipeline.run_pipeline --roles "Registered Nurse" --max-pages 2   # legacy multi-source pull
 python -m src.scoring.taxonomy.setup_taxonomy      # rebuild O*NET files (optional)
-python -m pytest                                    # run all 145 tests
+python -m pytest                                    # run the test suite (offline)
 ```
 
 > [!warning] API keys
 > `.env` is gitignored — **never commit it**. Adzuna error messages are redacted so keys never appear in the dashboard or logs.
 
-> [!note] Git
-> All work is on branch `feature/onet-taxonomy-adzuna-complete`, staged but not committed (this machine had no git identity). Run `git config user.name "…"`, `git config user.email "…"`, then `git commit`.
 
 ---
 

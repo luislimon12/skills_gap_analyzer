@@ -15,7 +15,7 @@ from typing import Callable
 import streamlit as st
 from sqlalchemy.engine import Engine
 
-from src.dashboard.security import RateLimiter
+from src.dashboard.security import RateLimiter, rate_limit_keys
 from src.db.resumes_repo import create_resume, delete_resume, store_encrypted_file
 from src.resume.parse_resume import ResumeParseError, parse_resume
 from src.resume.upload_validation import MAX_UPLOAD_BYTES, UploadRejected, validate_upload
@@ -27,10 +27,18 @@ STATE_KEY = "resume_record"
 NONCE_KEY = "resume_upload_nonce"
 
 DATA_USE_NOTE = (
-    "**How your data is used:** your resume is read to find your skills. We keep only the "
-    "list of skills and your results, linked to an anonymous ID, and delete them after "
-    "{days} days (or right away with **Delete my resume**). The text is never logged or shared."
+    "**How your data is used:** your resume is read to find your skills. We keep {kept}, "
+    "linked to an anonymous ID, and delete {them} after {days} days (or right away with "
+    "**Delete my resume**). The text is never logged or shared."
 )
+
+
+def data_use_note(retention_days: int, store_file: bool) -> str:
+    if store_file:
+        kept = "an encrypted copy of the file, the list of skills and your results"
+    else:
+        kept = "only the list of skills and your results (the file itself is discarded)"
+    return DATA_USE_NOTE.format(kept=kept, them="them", days=retention_days)
 
 
 def _privacy_link() -> None:
@@ -58,7 +66,7 @@ def render_upload(
         key=f"resume_upload_{nonce}",
         help="Google Docs resumes can be downloaded as PDF or DOCX before uploading.",
     )
-    st.caption(DATA_USE_NOTE.format(days=retention_days))
+    st.caption(data_use_note(retention_days, bool(resume_cfg.get("store_file", False))))
     _privacy_link()
 
     record = st.session_state.get(STATE_KEY)
@@ -67,7 +75,7 @@ def render_upload(
     if record and record.get("file_id") == uploaded.file_id:
         return record["text"]
 
-    if not limiter.allow("upload", f"ip:{client_ip}", f"session:{session_id}"):
+    if not limiter.allow("upload", *rate_limit_keys(client_ip, session_id)):
         st.error("Too many uploads. Please wait a while and try again.")
         return None
 

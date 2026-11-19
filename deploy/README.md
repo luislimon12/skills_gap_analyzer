@@ -51,9 +51,10 @@ On the VM:
 
 ```bash
 sudo apt update && sudo apt -y upgrade
-sudo apt -y install python3-venv python3-pip postgresql age unattended-upgrades
+sudo apt -y install python3-venv python3-pip postgresql age jq unattended-upgrades
 sudo dpkg-reconfigure -plow unattended-upgrades       # automatic security updates
-sudo useradd --system --create-home --home-dir /opt/skills_gap_analyzer skillsgap
+sudo useradd --system --create-home --home-dir /home/skillsgap --shell /usr/sbin/nologin skillsgap
+sudo install -d -o skillsgap -g skillsgap /opt/skills_gap_analyzer   # empty, so git can clone into it
 sudo -u skillsgap git clone https://github.com/luislimon12/skills_gap_analyzer.git /opt/skills_gap_analyzer
 cd /opt/skills_gap_analyzer
 sudo -u skillsgap python3 -m venv .venv
@@ -113,8 +114,14 @@ For the first two weeks, check failures daily (the report timer emails you, or r
    cloudflared tunnel login
    cloudflared tunnel create skills-gap
    cloudflared tunnel route dns skills-gap skills.example.org
+   # `tunnel create` wrote the credentials to ~/.cloudflared/<TUNNEL-ID>.json; put them
+   # where the config expects them, readable only by root (the service runs as root).
+   sudo install -d -m 700 /etc/cloudflared
+   sudo install -m 600 ~/.cloudflared/$(cloudflared tunnel info -o json skills-gap | jq -r .id).json \
+       /etc/cloudflared/skills-gap.json
    sudo cp deploy/cloudflare/cloudflared-config.yml /etc/cloudflared/config.yml   # edit hostname
    sudo cloudflared service install
+   sudo systemctl status cloudflared --no-pager   # should show "Registered tunnel connection"
    ```
    The tunnel makes an outbound connection, so **no router or VM ports are opened**. Disable UPnP on a home router.
 3. **[manual]** Security > WAF: enable the Cloudflare managed ruleset and Bot Fight Mode.

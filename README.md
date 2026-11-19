@@ -168,7 +168,7 @@ python -m pytest                                   # SQLite
 TEST_DATABASE_URL=postgresql+psycopg://user:pass@localhost/skills_gap_test python -m pytest   # PostgreSQL
 ```
 
-The suite (about 60 tests in `tests/`) never calls a real API: `tests/conftest.py`
+The suite (about 75 tests in `tests/`) never calls a real API: `tests/conftest.py`
 blocks HTTP and removes API keys, and the Adzuna adapter is tested against a
 recorded response. It covers the adapters and fallback rule, deduplication,
 the stale/closed/reactivated lifecycle, the request budget and backfill, retries,

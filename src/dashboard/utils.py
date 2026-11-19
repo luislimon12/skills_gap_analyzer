@@ -1,6 +1,9 @@
 """Shared configuration and data-loading helpers for the Streamlit dashboard."""
 
+import hashlib
 import os
+import threading
+import weakref
 from pathlib import Path
 
 import yaml
@@ -13,7 +16,8 @@ from src.db.migrate import upgrade
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SETTINGS_PATH = PROJECT_ROOT / "config" / "settings.yaml"
 
-_MIGRATED: set[str] = set()
+_MIGRATED: "weakref.WeakSet[Engine]" = weakref.WeakSet()
+_MIGRATE_LOCK = threading.Lock()
 
 
 def load_settings(path: Path = SETTINGS_PATH) -> dict:
@@ -60,10 +64,13 @@ def database_engine(database: "Path | str | Engine | None" = None) -> Engine:
             path.parent.mkdir(parents=True, exist_ok=True)
             url = f"sqlite:///{path.as_posix()}"
         engine = get_engine(url)
-    key = str(engine.url)
-    if key not in _MIGRATED:
-        upgrade(engine)
-        _MIGRATED.add(key)
+    # Tracked per engine object, not per URL: two sqlite:///:memory: engines share a URL
+    # but are separate databases. The lock stops two first sessions migrating at once.
+    if engine not in _MIGRATED:
+        with _MIGRATE_LOCK:
+            if engine not in _MIGRATED:
+                upgrade(engine)
+                _MIGRATED.add(engine)
     return engine
 
 
@@ -79,6 +86,16 @@ def load_role_postings(role: str, database, include_closed: bool = False) -> lis
     engine = database_engine(database)
     with engine.connect() as conn:
         return load_jobs_for_role(conn, role, include_closed=include_closed)
+
+
+def postings_fingerprint(postings: list[dict]) -> str:
+    """Short hash of the postings that feed an analysis (ids and content)."""
+    digest = hashlib.sha256()
+    for posting in sorted(postings, key=lambda p: (str(p.get("source")), str(p.get("source_id")))):
+        for field in ("source", "source_id", "title", "full_text", "posted_date"):
+            digest.update(str(posting.get(field) or "").encode("utf-8"))
+            digest.update(b"\x1f")
+    return digest.hexdigest()[:16]
 
 
 def database_job_counts(database) -> dict[str, int]:

@@ -21,12 +21,13 @@ from src.dashboard.components.upload_resume import (  # noqa: E402
     render_resume_controls,
     render_upload,
 )
-from src.dashboard.security import RateLimiter, client_ip, new_session_id  # noqa: E402
+from src.dashboard.security import RateLimiter, client_ip, new_session_id, rate_limit_keys  # noqa: E402
 from src.dashboard.utils import (  # noqa: E402
     analysis_rows_for_export,
     database_job_counts,
     load_role_postings,
     load_settings,
+    postings_fingerprint,
     role_market_stats,
     salary_summary,
     salary_summaries_by_country,
@@ -332,33 +333,37 @@ if all_countries_selected and has_country_salaries:
 
 if not postings:
     st.info(
-        f"No postings have been collected for {role} yet. The data collector adds postings "
+        f"No listed postings for {role} right now. The data collector adds postings "
         "for every tracked role in the background; please check back soon."
     )
-else:
-    if len(postings) < 20:
-        st.warning(
-            f"Only {len(postings)} postings in the sample: demand percentages have wide "
-            "confidence intervals. More postings are collected every hour."
-        )
-    with st.expander(f"Browse the {len(postings)} postings"):
-        show_unlisted = st.toggle(
-            "Also show postings that are no longer listed",
-            key=f"show_unlisted_{role}",
-            help="Postings that disappeared from the job board or whose link no longer works. "
-                 "They are never used in the analysis.",
-        )
-        browse = list(postings)
-        if show_unlisted:
-            listed_ids = {posting["id"] for posting in postings}
-            browse += [
-                posting for posting in load_role_postings(role, engine, include_closed=True)
-                if posting["id"] not in listed_ids
-                and (selected_country == "All countries"
-                     or (posting.get("country") or "Unknown") == selected_country)
-                and (selected_region == "All provinces/states"
-                     or (posting.get("region") or "Unknown") == selected_region)
-            ]
+elif len(postings) < 20:
+    st.warning(
+        f"Only {len(postings)} postings in the sample: demand percentages have wide "
+        "confidence intervals. More postings are collected every hour."
+    )
+
+# Shown even when nothing is listed, so postings that closed can still be browsed.
+with st.expander(f"Browse the {len(postings)} listed postings"):
+    show_unlisted = st.toggle(
+        "Also show postings that are no longer listed",
+        key=f"show_unlisted_{role}",
+        help="Postings that disappeared from the job board or whose link no longer works. "
+             "They are never used in the analysis.",
+    )
+    browse = list(postings)
+    if show_unlisted:
+        listed_ids = {posting["id"] for posting in postings}
+        browse += [
+            posting for posting in load_role_postings(role, engine, include_closed=True)
+            if posting["id"] not in listed_ids
+            and (selected_country == "All countries"
+                 or (posting.get("country") or "Unknown") == selected_country)
+            and (selected_region == "All provinces/states"
+                 or (posting.get("region") or "Unknown") == selected_region)
+        ]
+    if not browse:
+        st.caption("Nothing to show yet.")
+    else:
         st.dataframe(
             pd.DataFrame(
                 {
@@ -381,6 +386,8 @@ else:
             hide_index=True,
             column_config={"URL": st.column_config.LinkColumn("URL", display_text="Open")},
         )
+
+if postings:
     if any(posting["is_truncated"] for posting in postings):
         limited_sources = {
             posting["source"] for posting in postings if posting["is_truncated"]
@@ -446,12 +453,15 @@ if selected_view == "Posting-based skills":
         st.info("No postings have been collected for this role yet.")
     else:
         resume_record = st.session_state.get(RESUME_STATE_KEY)
+        # Identify the inputs by content, not just count: replaced or edited postings
+        # are a new analysis (and get saved again).
         analysis_key = (
-            resume_record["id"] if resume_record else "", role, selected_country, selected_region, len(postings),
+            resume_record["id"] if resume_record else "", role, selected_country, selected_region,
+            postings_fingerprint(postings),
         )
         seen_analyses = st.session_state.setdefault("analysis_keys", set())
         if resume_text and analysis_key not in seen_analyses:
-            if not limiter.allow("analysis", f"ip:{visitor_ip}", f"session:{session_id}"):
+            if not limiter.allow("analysis", *rate_limit_keys(visitor_ip, session_id)):
                 st.error("Too many analyses in a short time. Please wait a while and try again.")
                 st.stop()
             seen_analyses.add(analysis_key)

@@ -17,7 +17,12 @@ def _url() -> str | None:
 def run_migrations_offline() -> None:
     from src.db.engine import database_url
 
-    context.configure(url=database_url(_url()), target_metadata=target_metadata, literal_binds=True)
+    context.configure(
+        url=database_url(_url()),
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
     with context.begin_transaction():
         context.run_migrations()
 

@@ -89,6 +89,7 @@ class FetchResult:
     raw: dict | list | None = None       # raw response, kept briefly for debugging
     page_size: int = 0                   # number of raw results on the page (before filters)
     used_fallback: bool = False
+    failed_attempts: int = 0             # set by the worker's retry loop
 
 
 class JobSource(ABC):

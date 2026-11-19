@@ -30,7 +30,7 @@ runbook step.
 - [x] Adzuna adapter → `src/sources/adzuna.py`.
 - [x] LoopCV stub → `src/sources/loopcv.py`.
 - [x] USAJOBS removed: fetcher, normaliser, config block, `.env` entries, dashboard references, test fixtures, README and guide.
-- [x] Old tests replaced by a new suite of about 60 tests (`tests/`), run in GitHub Actions on SQLite and PostgreSQL with no API calls.
+- [x] Old tests replaced by a new suite of about 75 tests (`tests/`), run in GitHub Actions on SQLite and PostgreSQL with no API calls.
 
 ## 5. Database and storage
 - [x] `jobs` with unique (source, external_id) → `src/db/schema.py`.

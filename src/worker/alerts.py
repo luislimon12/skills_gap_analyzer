@@ -1,16 +1,19 @@
 """Email alerts for worker failures and low disk space.
 
 Configure SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, ALERT_EMAIL_FROM
-and ALERT_EMAIL_TO in .env. Without them alerts are only logged. Emails are
-throttled so a broken worker doesn't send one every hour.
+and ALERT_EMAIL_TO in .env. Without them alerts are only logged. Each kind of
+alert (``key``) is throttled separately, so a daily report never delays a
+run-failure alert. Sending an alert never raises.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import smtplib
+import ssl
 import time
 from email.message import EmailMessage
 from pathlib import Path
@@ -19,7 +22,11 @@ from src.db.engine import PROJECT_ROOT
 
 log = logging.getLogger(__name__)
 
-THROTTLE_FILE = PROJECT_ROOT / "data" / ".last_alert"
+MARKER_DIR = PROJECT_ROOT / "data"
+
+
+def marker_path(key: str) -> Path:
+    return MARKER_DIR / f".last_alert_{re.sub(r'[^a-z0-9_-]+', '_', key.lower())}"
 
 
 def _throttled(min_hours: float, marker: Path) -> bool:
@@ -29,31 +36,43 @@ def _throttled(min_hours: float, marker: Path) -> bool:
         return False
 
 
-def send_alert(subject: str, body: str, *, min_hours_between: float = 6, marker: Path = THROTTLE_FILE) -> bool:
+def send_alert(subject: str, body: str, *, key: str = "general", min_hours_between: float = 6,
+               marker: Path | None = None) -> bool:
     """Log the alert and email it if SMTP is configured. Returns True if an email was sent."""
     log.error("ALERT: %s - %s", subject, body)
     host, recipient = os.getenv("SMTP_HOST"), os.getenv("ALERT_EMAIL_TO")
     if not host or not recipient:
         return False
-    if _throttled(min_hours_between, marker):
-        log.info("Alert email throttled (sent one in the last %s hours)", min_hours_between)
+    marker = marker or marker_path(key)
+    if min_hours_between > 0 and _throttled(min_hours_between, marker):
+        log.info("Alert email '%s' throttled (one sent in the last %s hours)", key, min_hours_between)
         return False
+    try:
+        port = int(os.getenv("SMTP_PORT") or 587)
+    except ValueError:
+        log.error("SMTP_PORT is not a number; alert email not sent")
+        return False
+
     message = EmailMessage()
     message["Subject"] = f"[Skills Gap Analyzer] {subject}"
     message["From"] = os.getenv("ALERT_EMAIL_FROM") or recipient
     message["To"] = recipient
     message.set_content(body)
     try:
-        with smtplib.SMTP(host, int(os.getenv("SMTP_PORT") or 587), timeout=20) as smtp:
-            smtp.starttls()
+        with smtplib.SMTP(host, port, timeout=20) as smtp:
+            # Verify the server certificate and hostname before sending credentials.
+            smtp.starttls(context=ssl.create_default_context())
             if os.getenv("SMTP_USERNAME"):
                 smtp.login(os.getenv("SMTP_USERNAME"), os.getenv("SMTP_PASSWORD") or "")
             smtp.send_message(message)
-    except (OSError, smtplib.SMTPException) as error:
+    except (OSError, smtplib.SMTPException, ssl.SSLError) as error:
         log.error("Could not send alert email: %s", type(error).__name__)
         return False
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.touch()
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.touch()
+    except OSError as error:
+        log.warning("Alert sent, but the throttle marker could not be written (%s)", type(error).__name__)
     return True
 
 

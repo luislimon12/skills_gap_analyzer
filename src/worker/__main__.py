@@ -3,7 +3,7 @@
     python -m src.worker run        # one cycle (the scheduler calls this every hour)
     python -m src.worker cleanup    # delete resumes past their 30-day deletion date
     python -m src.worker status     # jobs, slice progress, today's request use, recent runs
-    python -m src.worker report --days 1 [--email]   # failed runs (daily check)
+    python -m src.worker report --days 1 [--email]   # failed runs (exit 3 if any were found)
 
 Only one ``run`` can be active at a time (data/worker.lock).
 """
@@ -21,12 +21,18 @@ from src.db.engine import PROJECT_ROOT, get_engine, utcnow
 from src.db.migrate import upgrade
 from src.worker.alerts import send_alert
 from src.worker.budget import RequestBudget
-from src.worker.config import load_ingestion_config
+from src.worker.config import ConfigError, load_ingestion_config
 from src.worker.cycle import cleanup_resumes, run_cycle, run_housekeeping
 from src.worker.lock import SingleInstanceLock, WorkerAlreadyRunning
 
 LOCK_PATH = PROJECT_ROOT / "data" / "worker.lock"
 LOG_PATH = PROJECT_ROOT / "data" / "logs" / "worker.log"
+
+# Exit codes. A crash exits 1, so "report found failures" uses its own code and
+# the systemd report unit can accept it without also accepting crashes.
+EXIT_RUN_FAILED = 1
+EXIT_CONFIG_ERROR = 2
+EXIT_FAILURES_FOUND = 3
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -44,8 +50,19 @@ def setup_logging(verbose: bool = False) -> None:
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
+def _load_config():
+    try:
+        return load_ingestion_config()
+    except ConfigError as error:
+        logging.getLogger(__name__).error("%s", error)
+        send_alert("Worker config is invalid", str(error), key="config-error")
+        return None
+
+
 def cmd_run(args) -> int:
-    config = load_ingestion_config()
+    config = _load_config()
+    if config is None:
+        return EXIT_CONFIG_ERROR
     try:
         with SingleInstanceLock(LOCK_PATH):
             engine = get_engine()
@@ -56,11 +73,13 @@ def cmd_run(args) -> int:
     except WorkerAlreadyRunning:
         logging.getLogger(__name__).warning("Another worker run is still active; skipping this one.")
         return 0
-    return 1 if summary.status == "failed" else 0
+    return EXIT_RUN_FAILED if summary.status == "failed" else 0
 
 
 def cmd_cleanup(_args) -> int:
-    config = load_ingestion_config()
+    config = _load_config()
+    if config is None:
+        return EXIT_CONFIG_ERROR
     engine = get_engine()
     upgrade(engine)
     deleted = cleanup_resumes(engine, config)
@@ -69,7 +88,9 @@ def cmd_cleanup(_args) -> int:
 
 
 def cmd_status(_args) -> int:
-    config = load_ingestion_config()
+    config = _load_config()
+    if config is None:
+        return EXIT_CONFIG_ERROR
     engine = get_engine()
     upgrade(engine)
     now = utcnow()
@@ -108,8 +129,8 @@ def cmd_report(args) -> int:
     print("\n".join(lines))
     if args.email:
         send_alert(f"{len(failures)} problem run(s) in the last {args.days} day(s)", "\n".join(lines),
-                   min_hours_between=0)
-    return 1
+                   key="daily-report", min_hours_between=0)
+    return EXIT_FAILURES_FOUND
 
 
 def main(argv: list[str] | None = None) -> int:

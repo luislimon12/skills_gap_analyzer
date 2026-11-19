@@ -34,7 +34,7 @@ def test_alembic_migration_matches_schema_and_is_idempotent(engine):
         assert migrated == set(table.columns.keys()), table.name
     upgrade(engine)  # second run is a no-op
     with engine.connect() as conn:
-        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0001"
+        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0002"
 
 
 # -------------------------------------------------------------------- dedup
@@ -111,12 +111,47 @@ def test_stale_job_closes_only_after_the_configured_window(engine):
 def test_closed_job_is_reactivated_when_it_reappears(engine):
     upsert(engine, [make_job(1)])
     with engine.begin() as conn:
-        jobs_repo.mark_closed(conn, job_id(engine, 1), now=T0 + timedelta(days=2))
+        jobs_repo.mark_closed(conn, job_id(engine, 1), now=T0 + timedelta(days=2), reason="stale")
     stats = upsert(engine, [make_job(1)], now=T0 + timedelta(days=3))
     assert stats.reactivated == 1
     with engine.connect() as conn:
-        row = conn.execute(select(jobs.c.status, jobs.c.closed_at, jobs.c.stale_since)).one()
-    assert tuple(row) == ("active", None, None)
+        row = conn.execute(select(jobs.c.status, jobs.c.closed_at, jobs.c.closed_reason,
+                                  jobs.c.last_checked_at)).one()
+    assert tuple(row) == ("active", None, None, None)  # link is rechecked soon
+
+
+def test_dead_link_reopens_only_when_its_url_changes(engine):
+    upsert(engine, [make_job(1)])
+    with engine.begin() as conn:
+        jobs_repo.mark_closed(conn, job_id(engine, 1), now=T0, reason="link_dead")
+    assert upsert(engine, [make_job(1)], now=T0 + timedelta(hours=1)).reactivated == 0
+    assert statuses(engine) == {"1": "closed"}
+    assert upsert(engine, [make_job(1, url="https://example.test/new")], now=T0 + timedelta(hours=2)).reactivated == 1
+    assert statuses(engine) == {"1": "active"}
+
+
+def test_stale_rule_can_require_two_missed_scans(engine):
+    upsert(engine, [make_job(1)], now=T0)
+    previous, current = T0 - timedelta(hours=1), T0 + timedelta(days=1)
+    with engine.begin() as conn:
+        # Seen after the previous scan started: one miss is not enough.
+        assert jobs_repo.mark_unseen_stale(conn, country_code="ca", query="Data Analyst",
+                                           scan_started_at=current, previous_scan_started_at=previous) == 0
+        assert jobs_repo.mark_unseen_stale(conn, country_code="ca", query="Data Analyst",
+                                           scan_started_at=current + timedelta(days=1),
+                                           previous_scan_started_at=current) == 1
+
+
+def test_worker_and_dashboard_share_the_configured_sqlite_file(tmp_path, monkeypatch):
+    from src.db import engine as engine_module
+
+    settings = tmp_path / "settings.yaml"
+    settings.write_text('database_path: "data/custom.db"\n', encoding="utf-8")
+    assert engine_module.sqlite_path(settings) == engine_module.PROJECT_ROOT / "data" / "custom.db"
+    monkeypatch.setattr(engine_module, "SETTINGS_PATH", settings)
+    monkeypatch.setattr(engine_module, "PROJECT_ROOT", tmp_path)
+    assert engine_module.database_url() == f"sqlite:///{(tmp_path / 'data' / 'custom.db').as_posix()}"
+    assert engine_module.sqlite_path(tmp_path / "missing.yaml") == engine_module.DEFAULT_SQLITE_PATH
 
 
 def test_closed_jobs_are_hidden_from_results_but_available_with_a_label(engine):

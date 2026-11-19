@@ -166,6 +166,18 @@ def test_fallback_not_used_when_primary_answers_or_a_later_page_is_empty():
     assert fallback.calls == 0
 
 
+def test_after_falling_back_later_pages_stay_on_the_fallback_source():
+    primary = StubSource("loopcv", result=[])  # e.g. the LoopCV stub with a key set
+    fallback = StubSource("adzuna", result=[_job("1", "adzuna")])
+    chained = FallbackSource(primary, fallback)
+    assert chained.fetch(SearchCriteria("Data Analyst", page=1)).source == "adzuna"
+    page_two = chained.fetch(SearchCriteria("Data Analyst", page=2))
+    assert (page_two.source, page_two.used_fallback, primary.calls, fallback.calls) == ("adzuna", True, 1, 2)
+    # A different search starts on the primary again.
+    chained.fetch(SearchCriteria("Electrician", page=2))
+    assert primary.calls == 2
+
+
 def test_build_source_runs_on_adzuna_alone_until_loopcv_is_enabled():
     assert isinstance(build_source({}), AdzunaSource)
     chained = build_source({"sources": {"loopcv": {"enabled": True}}})

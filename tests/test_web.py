@@ -8,12 +8,14 @@ import docx
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from src.dashboard.security import RateLimiter, client_ip
+from src.dashboard.components.upload_resume import data_use_note
+from src.dashboard.security import RateLimiter, client_ip, rate_limit_keys
 from src.dashboard.utils import (
     analysis_rows_for_export,
     database_job_counts,
     load_role_postings,
     load_settings,
+    postings_fingerprint,
     salary_summaries_by_country,
 )
 from src.resume.upload_validation import UploadRejected, validate_upload
@@ -51,6 +53,18 @@ def macro_docx_bytes() -> bytes:
     return target.getvalue()
 
 
+def damaged_docx_bytes() -> bytes:
+    """Valid zip directory, but [Content_Types].xml fails its CRC check when read."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as archive:
+        archive.writestr("[Content_Types].xml", "<Types>content-types-body</Types>")
+        archive.writestr("word/document.xml", "<document/>")
+    data = bytearray(buffer.getvalue())
+    position = data.index(b"content-types-body")
+    data[position] ^= 0x01
+    return bytes(data)
+
+
 def plain_zip_bytes() -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
@@ -73,10 +87,11 @@ def test_pdf_and_docx_are_recognised_by_their_content():
         (b"MZ\x90\x00 an executable", "Only PDF and Word"),
         (plain_zip_bytes(), "Only PDF and Word"),
         (macro_docx_bytes(), "macros"),
+        (damaged_docx_bytes(), "damaged"),
         (b"%PDF-" + b"0" * (5 * 1024 * 1024), "larger than 5 MB"),
         (b"", "empty"),
     ],
-    ids=["text", "exe", "plain-zip", "macro-docx", "too-big", "empty"],
+    ids=["text", "exe", "plain-zip", "macro-docx", "damaged-docx", "too-big", "empty"],
 )
 def test_unsafe_or_unsupported_uploads_are_rejected(data, message):
     with pytest.raises(UploadRejected, match=message):
@@ -105,6 +120,30 @@ def test_rejected_attempts_are_not_charged_and_cloudflare_ip_is_used():
     assert client_ip({"CF-Connecting-IP": "203.0.113.7", "X-Forwarded-For": "10.0.0.1"}) == "203.0.113.7"
     assert client_ip({"X-Forwarded-For": "198.51.100.2, 10.0.0.1"}) == "198.51.100.2"
     assert client_ip({}) == ""
+
+
+def test_visitors_without_an_ip_do_not_share_a_bucket_and_old_buckets_are_evicted():
+    assert rate_limit_keys("", "a") == ("session:a",)
+    assert rate_limit_keys("203.0.113.7", "a") == ("ip:203.0.113.7", "session:a")
+    now = [0.0]
+    limiter = RateLimiter({"upload": (1, 60)}, clock=lambda: now[0])
+    assert limiter.allow("upload", *rate_limit_keys("", "a"))
+    assert limiter.allow("upload", *rate_limit_keys("", "b"))  # not blocked by visitor a
+    for index in range(300):
+        limiter.allow("upload", f"session:{index}")
+    now[0] = 1000.0
+    for index in range(300):  # triggers a sweep once everything has expired
+        limiter.allow("upload", "session:fresh")
+    assert limiter.bucket_count() <= 2
+
+
+def test_upload_note_and_analysis_fingerprint():
+    assert "file itself is discarded" in data_use_note(30, store_file=False)
+    assert "encrypted copy of the file" in data_use_note(30, store_file=True)
+    postings = [{"source": "adzuna", "source_id": "1", "title": "Data Analyst", "full_text": "SQL"}]
+    edited = [{**postings[0], "full_text": "SQL and Python"}]
+    assert postings_fingerprint(postings) == postings_fingerprint(list(postings))
+    assert postings_fingerprint(postings) != postings_fingerprint(edited)
 
 
 # --------------------------------------------------------- dashboard helpers

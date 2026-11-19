@@ -1,5 +1,6 @@
 # Shared config - all roles read from this file.
-# Local SQLite file. Ignored when DATABASE_URL is set in .env (production PostgreSQL).
+# Local SQLite file, used by BOTH the worker and the dashboard.
+# Ignored when DATABASE_URL is set in .env (production PostgreSQL).
 database_path: "data/skills_gap.db"
 
 # Fallback role list. The dashboard offers the roles the worker collects

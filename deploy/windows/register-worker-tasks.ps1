@@ -55,8 +55,11 @@ function Register-SkillsGapTask($name, $arguments, $trigger) {
     Write-Host "Registered '$name'"
 }
 
-$hourly = New-ScheduledTaskTrigger -Once -At (Get-Date).Date.AddMinutes(5) `
-    -RepetitionInterval (New-TimeSpan -Hours 1)
+# Start a few minutes from now and repeat hourly for 10 years. An explicit duration
+# avoids the repetition ending after one day on older Task Scheduler versions.
+$hourly = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5) `
+    -RepetitionInterval (New-TimeSpan -Hours 1) `
+    -RepetitionDuration (New-TimeSpan -Days 3650)
 Register-SkillsGapTask "SkillsGap Worker" "-m src.worker run" $hourly
 Register-SkillsGapTask "SkillsGap Cleanup" "-m src.worker cleanup" (New-ScheduledTaskTrigger -Daily -At 3:15am)
 Register-SkillsGapTask "SkillsGap Report" "-m src.worker report --days 1 --email" (New-ScheduledTaskTrigger -Daily -At 8:00am)

@@ -55,6 +55,7 @@ jobs = Table(
     Column("status", String(16), nullable=False, default="active"),
     Column("stale_since", DateTime(timezone=True)),
     Column("closed_at", DateTime(timezone=True)),
+    Column("closed_reason", String(16)),  # stale | link_dead
     UniqueConstraint("source", "external_id", name="uq_jobs_source_external_id"),
 )
 Index("ix_jobs_status", jobs.c.status)
@@ -93,6 +94,19 @@ fetch_runs = Table(
 )
 Index("ix_fetch_runs_started_at", fetch_runs.c.started_at)
 
+# One row per outbound API request, written *before* the request is sent.
+# The request budget counts these by request time, so a run that crosses
+# midnight charges each request to the day it was actually made.
+api_requests = Table(
+    "api_requests", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("source", String(64), nullable=False),
+    Column("kind", String(16), nullable=False),  # backfill | incremental
+    Column("requested_at", DateTime(timezone=True), nullable=False),
+    Column("run_id", Integer),
+)
+Index("ix_api_requests_requested_at", api_requests.c.requested_at)
+
 # Backfill / re-scan queue: one row per (source, country, query) slice.
 backfill_tasks = Table(
     "backfill_tasks", metadata,
@@ -104,8 +118,11 @@ backfill_tasks = Table(
     Column("priority", Integer, nullable=False, default=100),  # lower = sooner
     Column("page", Integer, nullable=False, default=1),        # next page to fetch
     Column("mode", String(16), nullable=False, default="backfill"),  # backfill|rescan|incremental
-    Column("status", String(16), nullable=False, default="pending"),  # pending|complete|failed
+    Column("status", String(16), nullable=False, default="pending"),  # pending|complete|inactive
     Column("scan_started_at", DateTime(timezone=True)),
+    # Start of the previous completed full scan. A job is only marked stale when
+    # it was missed by two consecutive full scans (results can shift between pages).
+    Column("previous_scan_started_at", DateTime(timezone=True)),
     Column("last_run_at", DateTime(timezone=True)),
     Column("last_full_scan_at", DateTime(timezone=True)),
     Column("last_incremental_at", DateTime(timezone=True)),

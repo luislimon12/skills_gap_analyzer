@@ -7,8 +7,12 @@ stale lock behind. The PID is written into the file for troubleshooting.
 
 from __future__ import annotations
 
+import errno
 import os
 from pathlib import Path
+
+# flock reports contention as EWOULDBLOCK/EAGAIN; msvcrt.locking as EACCES or EDEADLOCK.
+_CONTENTION_ERRNOS = {errno.EWOULDBLOCK, errno.EAGAIN, errno.EACCES, getattr(errno, "EDEADLOCK", errno.EDEADLK)}
 
 
 class WorkerAlreadyRunning(RuntimeError):
@@ -33,9 +37,13 @@ class SingleInstanceLock:
                 import fcntl
 
                 fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
+        except OSError as error:
             handle.close()
-            raise WorkerAlreadyRunning(f"Another worker holds {self.path}") from None
+            # Only "someone else holds it" means another worker; anything else
+            # (e.g. ENOLCK) is a real failure and must not look like a clean skip.
+            if error.errno in _CONTENTION_ERRNOS:
+                raise WorkerAlreadyRunning(f"Another worker holds {self.path}") from None
+            raise
         handle.seek(0)
         handle.truncate()
         handle.write(str(os.getpid()))

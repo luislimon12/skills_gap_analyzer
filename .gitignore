@@ -26,7 +26,7 @@ data/skills_gap.db
 # runtime data: logs, worker lock, alert marker, encrypted resumes, raw API responses
 data/logs/
 data/worker.lock
-data/.last_alert
+data/.last_alert*
 data/private/
 data/raw/api/
 *.db-journal

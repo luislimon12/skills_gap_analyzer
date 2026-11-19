@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import re
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -26,10 +27,13 @@ def save_raw_response(
     page: int,
     now: datetime,
 ) -> Path:
+    """Write one response. A random suffix keeps names unique even when two
+    search terms share a slug (e.g. "Data Analyst" and "Data-Analyst")."""
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     stamp = now.strftime("%Y%m%dT%H%M%S")
-    path = directory / f"{stamp}_{_slug(source)}_{country}_{_slug(query)}_p{page}.json"
+    name = f"{stamp}_{_slug(source)}_{country}_{_slug(query)}_p{page}_{uuid.uuid4().hex[:8]}.json"
+    path = directory / name
     path.write_text(json.dumps(raw), encoding="utf-8")
     return path
 

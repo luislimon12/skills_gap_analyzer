@@ -26,8 +26,14 @@ pg_restore --no-owner --dbname="$TEST_DB" "$WORK/backup.dump"
 psql --dbname="$TEST_DB" --tuples-only --command "
   SELECT 'jobs: '        || count(*) FROM jobs
   UNION ALL SELECT 'fetch_runs: '  || count(*) FROM fetch_runs
-  UNION ALL SELECT 'resumes (expect 0): ' || count(*) FROM resumes
   UNION ALL SELECT 'schema version: ' || version_num FROM alembic_version;"
 
+# Backups must never contain resume data (it is excluded so nothing outlives the 30-day deletion).
+RESUME_ROWS="$(psql --dbname="$TEST_DB" --tuples-only --no-align --command \
+  "SELECT (SELECT count(*) FROM resumes) + (SELECT count(*) FROM analyses);")"
 dropdb "$TEST_DB"
+if [ "${RESUME_ROWS:-1}" != "0" ]; then
+  echo "Restore test FAILED: the backup contains ${RESUME_ROWS} resume/analysis row(s)." >&2
+  exit 1
+fi
 echo "Restore test passed."

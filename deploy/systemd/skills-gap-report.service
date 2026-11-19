@@ -10,4 +10,5 @@ WorkingDirectory=/opt/skills_gap_analyzer
 EnvironmentFile=/opt/skills_gap_analyzer/.env
 Environment=HOME=/opt/skills_gap_analyzer/data/home
 ExecStart=/opt/skills_gap_analyzer/.venv/bin/python -m src.worker report --days 1 --email
-SuccessExitStatus=1
+# Exit 3 = "failed runs were found and reported"; a crash (exit 1) still counts as a failure.
+SuccessExitStatus=3

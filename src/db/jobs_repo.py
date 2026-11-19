@@ -69,7 +69,7 @@ def upsert_jobs(
         stats.found += 1
 
         existing = conn.execute(
-            select(jobs.c.id, jobs.c.status).where(
+            select(jobs.c.id, jobs.c.status, jobs.c.closed_reason, jobs.c.url).where(
                 jobs.c.source == job.source, jobs.c.external_id == job.external_id
             )
         ).first()
@@ -87,10 +87,18 @@ def upsert_jobs(
             ).inserted_primary_key[0]
             stats.inserted += 1
         else:
-            job_id, old_status = existing
+            job_id, old_status, closed_reason, old_url = existing
             values.update(last_seen_at=now)
-            if old_status != "active":
-                values.update(status="active", stale_since=None, closed_at=None)
+            dead_link_repeated = (
+                old_status == "closed" and closed_reason == "link_dead" and (values["url"] or "") == (old_url or "")
+            )
+            if dead_link_repeated:
+                # The source still lists it, but its link returned 404/410: keep it closed.
+                values.pop("url")
+            elif old_status != "active":
+                # Recheck the link soon after a posting comes back.
+                values.update(status="active", stale_since=None, closed_at=None, closed_reason=None,
+                              last_checked_at=None)
                 stats.reactivated += 1
                 log.info("Job %s:%s reactivated (was %s)", job.source, job.external_id, old_status)
             conn.execute(update(jobs).where(jobs.c.id == job_id).values(**values))
@@ -127,14 +135,22 @@ def mark_unseen_stale(
     country_code: str,
     query: str,
     scan_started_at: datetime,
+    previous_scan_started_at: datetime | None = None,
     now: datetime | None = None,
 ) -> int:
     """After a full re-scan of a slice, mark its active jobs that were not seen as stale.
 
-    A job also found by another slice during the scan has a newer
+    Results can shift between page requests (a removed listing moves later ones
+    onto pages already fetched), so a single scan can miss a live job. A job is
+    therefore only marked stale when it was unseen since the *previous* full scan
+    started, i.e. missed by two consecutive scans. Pass ``previous_scan_started_at=None``
+    to use only the current scan (e.g. tests of the single-scan rule).
+
+    A job also found by another slice during the scans has a newer
     ``last_seen_at`` and is left alone.
     """
     now = now or utcnow()
+    cutoff = previous_scan_started_at or scan_started_at
     slice_job_ids = select(job_queries.c.job_id).where(
         job_queries.c.country_code == country_code, job_queries.c.query == query
     )
@@ -142,7 +158,7 @@ def mark_unseen_stale(
         update(jobs)
         .where(
             jobs.c.status == "active",
-            jobs.c.last_seen_at < scan_started_at,
+            jobs.c.last_seen_at < cutoff,
             jobs.c.id.in_(slice_job_ids),
         )
         .values(status="stale", stale_since=now)
@@ -157,16 +173,16 @@ def close_stale_jobs(conn: Connection, *, stale_days: int, now: datetime | None 
     result = conn.execute(
         update(jobs)
         .where(jobs.c.status == "stale", jobs.c.stale_since <= cutoff)
-        .values(status="closed", closed_at=now)
+        .values(status="closed", closed_at=now, closed_reason="stale")
     )
     return result.rowcount or 0
 
 
-def mark_closed(conn: Connection, job_id: int, now: datetime | None = None) -> None:
+def mark_closed(conn: Connection, job_id: int, now: datetime | None = None, reason: str = "link_dead") -> None:
     now = now or utcnow()
     conn.execute(
         update(jobs).where(jobs.c.id == job_id)
-        .values(status="closed", closed_at=now, last_checked_at=now)
+        .values(status="closed", closed_at=now, last_checked_at=now, closed_reason=reason)
     )
 
 
