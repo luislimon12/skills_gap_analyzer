@@ -1,0 +1,5 @@
+# Alternative to the systemd timers (crontab -e as the skillsgap user).
+# cron does not catch up after a missed start; prefer the systemd timers.
+5 * * * *  cd /opt/skills_gap_analyzer && set -a && . ./.env && set +a && .venv/bin/python -m src.worker run >> data/logs/cron.log 2>&1
+15 3 * * * cd /opt/skills_gap_analyzer && set -a && . ./.env && set +a && .venv/bin/python -m src.worker cleanup >> data/logs/cron.log 2>&1
+0 8 * * *  cd /opt/skills_gap_analyzer && set -a && . ./.env && set +a && .venv/bin/python -m src.worker report --days 1 --email >> data/logs/cron.log 2>&1

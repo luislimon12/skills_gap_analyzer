@@ -1,0 +1,14 @@
+# Cloudflare Tunnel: the only inbound path to the app (no router/VM ports open).
+#   cloudflared tunnel create skills-gap
+#   cloudflared tunnel route dns skills-gap skills.example.org
+# Copy to /etc/cloudflared/config.yml (VM) or %USERPROFILE%\.cloudflared\config.yml (home PC).
+tunnel: skills-gap
+credentials-file: /etc/cloudflared/skills-gap.json
+
+ingress:
+  - hostname: skills.example.org        # replace with your hostname
+    service: http://127.0.0.1:8501
+    originRequest:
+      noTLSVerify: false
+      connectTimeout: 10s
+  - service: http_status:404

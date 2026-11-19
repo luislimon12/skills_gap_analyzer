@@ -1,0 +1,13 @@
+[Unit]
+Description=Skills Gap Analyzer nightly encrypted backup
+After=postgresql.service network-online.target
+
+[Service]
+Type=oneshot
+User=skillsgap
+Group=skillsgap
+WorkingDirectory=/opt/skills_gap_analyzer
+EnvironmentFile=/opt/skills_gap_analyzer/.env
+ExecStart=/opt/skills_gap_analyzer/deploy/backup/backup.sh
+PrivateTmp=true
+NoNewPrivileges=true

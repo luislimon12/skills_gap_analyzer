@@ -13,12 +13,6 @@ adzuna:
 greenhouse_boards: []    # add company board tokens here as strings, e.g. "airbnb"
 lever_boards: []         # add company names here, e.g. "netflix"
 
-usajobs:
-  enabled: true
-  results_per_page: 50
-  max_pages_per_role: 2
-  request_delay_seconds: 1
-
 canada_job_bank:
   enabled: true  # monthly CSV from the Open Government Portal
 

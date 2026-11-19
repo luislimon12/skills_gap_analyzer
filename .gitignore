@@ -17,7 +17,16 @@ data/skills_gap.db
 !data/cache/.gitkeep
 
 # streamlit
-.streamlit/
+.streamlit/*
+!.streamlit/config.toml
 
 # os
 .DS_Store
+
+# runtime data: logs, worker lock, alert marker, encrypted resumes, raw API responses
+data/logs/
+data/worker.lock
+data/.last_alert*
+data/private/
+data/raw/api/
+*.db-journal

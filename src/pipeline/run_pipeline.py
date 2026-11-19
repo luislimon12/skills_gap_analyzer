@@ -1,12 +1,17 @@
 """
+LEGACY multi-source pull into the older `postings` table (experiments only).
+
+The web app reads the `jobs` table filled by the scheduled worker
+(`python -m src.worker run`); see README "Ingestion worker".
+
 Role 1 - end-to-end postings pull: fetch -> save raw -> normalize -> dedup -> store.
 
 Run from the project root:
     python -m src.pipeline.run_pipeline
     python -m src.pipeline.run_pipeline --roles "Data Analyst" --max-pages 1
 
-Settings come from src/pipeline/config_postings.yaml. Adzuna and USAJOBS are
-skipped with a warning when their credentials are missing; Greenhouse/Lever
+Settings come from src/pipeline/config_postings.yaml. Adzuna is
+skipped with a warning when its keys are missing; Greenhouse/Lever
 boards do not need keys.
 """
 
@@ -26,7 +31,6 @@ from src.pipeline.normalize import (
     normalize_canada_job_bank,
     normalize_greenhouse,
     normalize_lever,
-    normalize_usajobs,
     title_matches_role,
 )
 from src.pipeline.store_postings import (
@@ -80,34 +84,6 @@ def pull_adzuna(role: str, cfg: dict, save_raw: bool) -> tuple[list[dict], dict]
     return postings, market
 
 
-def pull_usajobs(
-    role: str,
-    cfg: dict,
-    save_raw: bool,
-    errors: list[str] | None = None,
-) -> list[dict]:
-    """Fetch and normalize the configured USAJOBS search pages for one role."""
-    postings = []
-    per_page = cfg.get("results_per_page", 50)
-    for page in range(1, cfg.get("max_pages_per_role", 2) + 1):
-        try:
-            raw = fetch.fetch_usajobs_postings(role, page, per_page)
-        except requests.RequestException as error:
-            message = f"usajobs:{role}: page {page}: {error}"
-            if errors is not None:
-                errors.append(message)
-            log.error("USAJOBS page fetch failed for %s: %s", role, message)
-            break
-        if save_raw:
-            fetch.save_raw(raw, f"usajobs_{_slug(role)}_page{page}.json")
-        postings.extend(normalize_usajobs(raw, role))
-        items = (raw.get("SearchResult") or {}).get("SearchResultItems") or []
-        if len(items) < per_page:
-            break
-        time.sleep(cfg.get("request_delay_seconds", 1))
-    return postings
-
-
 def run(roles: list[str] | None = None, max_pages: int | None = None, save_raw: bool = True,
         skip_adzuna: bool = False, db_path: Path = DB_PATH, config: dict | None = None) -> dict:
     """Pull every configured source for every role and store the deduped result.
@@ -124,10 +100,6 @@ def run(roles: list[str] | None = None, max_pages: int | None = None, save_raw: 
     use_adzuna = not skip_adzuna and fetch.adzuna_keys_configured()
     if not skip_adzuna and not use_adzuna:
         log.warning("ADZUNA_APP_ID / ADZUNA_APP_KEY not set in .env - skipping Adzuna")
-    usajobs_cfg = dict(config.get("usajobs") or {})
-    use_usajobs = usajobs_cfg.get("enabled", True) and fetch.usajobs_credentials_configured()
-    if usajobs_cfg.get("enabled", True) and not use_usajobs:
-        log.warning("USAJOBS_API_KEY / USAJOBS_USER_AGENT not set in .env - skipping USAJOBS")
     canada_job_bank_cfg = dict(config.get("canada_job_bank") or {})
 
     postings: list[dict] = []
@@ -138,7 +110,6 @@ def run(roles: list[str] | None = None, max_pages: int | None = None, save_raw: 
         db_path,
         source_country_hints={
             "adzuna": adzuna_cfg.get("country", "ca"),
-            "usajobs": "us",
             "canada_job_bank": "ca",
         },
     )
@@ -194,8 +165,6 @@ def run(roles: list[str] | None = None, max_pages: int | None = None, save_raw: 
             except ValueError as e:
                 errors.append(f"canada_job_bank:{role}: {e}")
                 log.error("Could not normalize Canada Job Bank data for %s: %s", role, e)
-        if use_usajobs:
-            postings.extend(pull_usajobs(role, usajobs_cfg, save_raw, errors))
 
     unique = dedup_postings(postings)
     written = insert_postings(unique, db_path)

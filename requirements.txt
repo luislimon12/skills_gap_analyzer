@@ -1,18 +1,26 @@
-# Role 1 — pipeline
+# Role 1 - pipeline and ingestion worker
 requests
 python-dotenv
 
-# Role 2 — resume parsing
+# Database: SQLite locally, PostgreSQL in production (DATABASE_URL)
+SQLAlchemy>=2.0
+alembic>=1.13
+psycopg[binary]>=3.1
+
+# Resume file encryption (only used when resumes.store_file is true)
+cryptography>=42
+
+# Role 2 - resume parsing
 pdfplumber
 python-docx
 
-# Role 3 — scoring (added in week 3, listed now so setup is one step)
+# Role 3 - scoring
 spacy
 scikit-learn
 statsmodels
 
-# Role 4 — dashboard
-streamlit
+# Role 4 - dashboard
+streamlit>=1.40
 pandas
 
 # shared
@@ -21,3 +29,4 @@ pyyaml
 # dev / tests
 pytest
 reportlab   # only used to generate a sample PDF in tests
+pip-audit   # dependency vulnerability check before each release

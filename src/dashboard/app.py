@@ -16,23 +16,25 @@ from src.dashboard.components.show_baseline import render_onet_baseline  # noqa:
 from src.dashboard.components.show_phrases import render_discovered_phrases  # noqa: E402
 from src.dashboard.components.show_gaps import render_demand_chart, render_gap_table  # noqa: E402
 from src.dashboard.components.show_recommendations import render_recommendations  # noqa: E402
-from src.dashboard.components.upload_resume import render_upload  # noqa: E402
+from src.dashboard.components.upload_resume import (  # noqa: E402
+    STATE_KEY as RESUME_STATE_KEY,
+    render_resume_controls,
+    render_upload,
+)
+from src.dashboard.security import RateLimiter, client_ip, new_session_id, rate_limit_keys  # noqa: E402
 from src.dashboard.utils import (  # noqa: E402
     analysis_rows_for_export,
+    database_job_counts,
     load_role_postings,
     load_settings,
-    resolve_database_path,
+    postings_fingerprint,
+    role_market_stats,
     salary_summary,
     salary_summaries_by_country,
+    settings_engine,
 )
-from src.pipeline.fetch_postings import (  # noqa: E402
-    adzuna_keys_configured,
-    usajobs_credentials_configured,
-)
+from src.db.resumes_repo import save_analysis  # noqa: E402
 from src.pipeline.geography import normalize_geography  # noqa: E402
-from src.pipeline.run_pipeline import load_config as load_pipeline_config  # noqa: E402
-from src.pipeline.run_pipeline import run as run_postings_pipeline  # noqa: E402
-from src.pipeline.store_postings import load_latest_market_snapshot  # noqa: E402
 from src.scoring.analyze import analyze_role  # noqa: E402
 from src.scoring.onet_baseline import occupation_choices, occupation_codes_for_role, onet_baseline  # noqa: E402
 from src.scoring.phrase_discovery import (  # noqa: E402
@@ -41,6 +43,7 @@ from src.scoring.phrase_discovery import (  # noqa: E402
 )
 from src.scoring.skill_matcher import SkillMatcher  # noqa: E402
 from src.scoring.text_similarity import rank_postings_by_skills, search_postings  # noqa: E402
+from src.worker.config import load_ingestion_config  # noqa: E402
 
 st.set_page_config(page_title="Job Posting Skills Gap Analyzer", layout="wide")
 
@@ -99,12 +102,19 @@ def get_matcher() -> SkillMatcher:
     return SkillMatcher()
 
 
-@st.cache_data(show_spinner="Scoring your resume against the postings...")
+@st.cache_resource
+def get_rate_limiter() -> RateLimiter:
+    return RateLimiter()
+
+
+# Caches that take resume text expire after an hour and are cleared when a
+# user deletes their resume, so resume content isn't kept in server memory.
+@st.cache_data(show_spinner="Scoring your resume against the postings...", ttl=3600, max_entries=100)
 def cached_analysis(resume_text: str, postings: list[dict]) -> dict:
     return analyze_role(resume_text, postings)
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=3600, max_entries=100)
 def cached_phrases(
     resume_text: str,
     postings: list[dict],
@@ -145,72 +155,65 @@ st.write(
 
 try:
     settings = load_settings()
-    pipeline_config = load_pipeline_config()
+    ingestion_config = load_ingestion_config()
+    engine = settings_engine(settings)
 except (OSError, ValueError) as error:
     st.error(f"Dashboard settings could not be loaded: {error}")
     st.stop()
+except Exception:  # noqa: BLE001 - never show connection strings or stack traces to the public
+    st.error("The job database is unavailable right now. Please try again in a few minutes.")
+    st.stop()
 
-database_path = resolve_database_path(settings)
-adzuna_cfg = pipeline_config.get("adzuna") or {}
+if "anon_session_id" not in st.session_state:
+    st.session_state["anon_session_id"] = new_session_id()
+session_id = st.session_state["anon_session_id"]
+try:
+    visitor_ip = client_ip(st.context.headers)
+except Exception:  # noqa: BLE001 - st.context is missing on older Streamlit versions
+    visitor_ip = ""
+limiter = get_rate_limiter()
+
+
+def clear_resume_caches() -> None:
+    cached_analysis.clear()
+    cached_phrases.clear()
+    cached_skill_postings.clear()
+
+
+tracked_roles = ingestion_config["queries"] or settings["target_roles"]
 
 with st.sidebar:
     st.header("Your analysis")
-    role = render_role_selector(settings["target_roles"])
-    resume_text = render_upload()
+    role = render_role_selector(tracked_roles)
+    resume_text = render_upload(
+        engine=engine,
+        resume_cfg=ingestion_config.get("resumes") or {},
+        limiter=limiter,
+        session_id=session_id,
+        client_ip=visitor_ip,
+        extract_skills=lambda text: [skill.name for skill in get_matcher().match(text)],
+    )
+    render_resume_controls(engine=engine, on_deleted=clear_resume_caches)
 
     st.divider()
     st.subheader("Job postings")
-    if adzuna_keys_configured():
-        st.caption(f"Adzuna keys found in .env (country: {adzuna_cfg.get('country', 'ca').upper()}).")
-    else:
-        st.warning("Adzuna keys are not set. Copy .env.example to .env and add ADZUNA_APP_ID / ADZUNA_APP_KEY.")
-    if usajobs_credentials_configured():
-        st.caption("USAJOBS API credentials found in .env.")
-    else:
-        st.info(
-            "To fetch U.S. federal jobs, get an API key from "
-            "[USAJOBS Developer](https://developer.usajobs.gov/) and set "
-            "`USAJOBS_API_KEY` and `USAJOBS_USER_AGENT` in `.env`."
-        )
-    if (pipeline_config.get("canada_job_bank") or {}).get("enabled", True):
-        st.caption(
-            "Canada Job Bank's monthly open-data CSV is enabled "
-            "(not a real-time feed; descriptions are not included)."
-        )
-    max_pages = st.slider(
-        "Adzuna pages to fetch (50 postings per page, 1 API call each)",
-        min_value=1, max_value=10, value=int(adzuna_cfg.get("max_pages_per_role", 5)),
+    st.caption(
+        "Postings are collected automatically every hour from Jobs by Adzuna "
+        "and kept up to date. Postings that are no longer listed are hidden."
     )
-    fetch_postings = st.button("Fetch latest postings for this role", type="primary")
-    st.caption("Resume text is processed in memory and is not saved to the postings database.")
 
-if fetch_postings:
-    with st.spinner(f"Fetching postings for {role}..."):
-        summary = run_postings_pipeline(roles=[role], max_pages=max_pages, db_path=database_path)
-    st.session_state["fetch_summary"] = summary
-    cached_analysis.clear()
-    cached_skill_postings.clear()
-    st.session_state.pop(f"skill_posting_search_{role}", None)
-    st.rerun()
-
-summary = st.session_state.pop("fetch_summary", None)
-if summary:
-    st.success(
-        f"Fetched {summary['fetched']} postings; {summary['unique']} unique, "
-        f"{summary['written']} new or upgraded in the database."
+job_counts = database_job_counts(engine)
+if sum(job_counts.values()) == 0:
+    st.info(
+        "No job postings have been collected yet. The data collector fills the database "
+        "automatically in the background; please check back soon."
     )
-    for error in summary["errors"]:
-        st.warning(error)
+    st.stop()
 
-postings = load_role_postings(role, database_path)
+postings = load_role_postings(role, engine)
 for posting in postings:
     if not posting.get("country") or not posting.get("region"):
-        country_hint = (
-            adzuna_cfg.get("country", "ca")
-            if posting.get("source") == "adzuna"
-            else "us" if posting.get("source") == "usajobs"
-            else posting.get("country")
-        )
+        country_hint = posting.get("country_code") or posting.get("country")
         country, region = normalize_geography(
             posting.get("location") or "",
             country_hint=country_hint,
@@ -256,7 +259,16 @@ if selected_region != "All provinces/states":
     else:
         postings = [p for p in postings if p.get("region") == selected_region]
 
-market = load_latest_market_snapshot(role, database_path)
+market_rows = role_market_stats(role, engine)
+market = None
+if market_rows:
+    counts = [row["total_count"] for row in market_rows if row["total_count"] is not None]
+    means = [row["mean_salary"] for row in market_rows if row["mean_salary"]]
+    market = {
+        "total_count": sum(counts) if counts else None,
+        # Averages from different countries use different currencies; only show a single-country mean.
+        "mean_salary": means[0] if len(market_rows) == 1 and means else None,
+    }
 all_countries_selected = selected_country == "All countries"
 salaries = None if all_countries_selected else salary_summary(postings)
 country_salaries = salary_summaries_by_country(postings) if all_countries_selected else {}
@@ -270,7 +282,7 @@ sample_col.metric("Postings in the sample", len(postings))
 live_col.metric(
     "Live Adzuna listings",
     f"{market['total_count']:,}" if market and market.get("total_count") is not None else "n/a",
-    help="Adzuna's total match count for this search at the last fetch.",
+    help="Adzuna's total match count for this search at the last collection run.",
 )
 salary_col.metric(
     "Median advertised salary (sample)",
@@ -293,7 +305,7 @@ salary_col.metric(
 mean_col.metric(
     "Adzuna mean salary (all listings)",
     money(market.get("mean_salary")) if market else "n/a",
-    help="Adzuna's average advertised salary for this search at the last fetch.",
+    help="Adzuna's average advertised salary at the last collection run (shown for a single country only, since currencies differ).",
 )
 if all_countries_selected and has_country_salaries:
     salary_groups = [
@@ -321,20 +333,42 @@ if all_countries_selected and has_country_salaries:
 
 if not postings:
     st.info(
-        "No postings are stored for this role yet. Use **Fetch latest postings** in the sidebar "
-        "(Adzuna keys in .env, and/or Greenhouse/Lever boards in src/pipeline/config_postings.yaml)."
+        f"No listed postings for {role} right now. The data collector adds postings "
+        "for every tracked role in the background; please check back soon."
     )
-else:
-    if len(postings) < 20:
-        st.warning(
-            f"Only {len(postings)} postings in the sample: demand percentages have wide "
-            "confidence intervals. Fetch more pages or try a broader role title."
-        )
-    with st.expander(f"Browse the {len(postings)} postings"):
+elif len(postings) < 20:
+    st.warning(
+        f"Only {len(postings)} postings in the sample: demand percentages have wide "
+        "confidence intervals. More postings are collected every hour."
+    )
+
+# Shown even when nothing is listed, so postings that closed can still be browsed.
+with st.expander(f"Browse the {len(postings)} listed postings"):
+    show_unlisted = st.toggle(
+        "Also show postings that are no longer listed",
+        key=f"show_unlisted_{role}",
+        help="Postings that disappeared from the job board or whose link no longer works. "
+             "They are never used in the analysis.",
+    )
+    browse = list(postings)
+    if show_unlisted:
+        listed_ids = {posting["id"] for posting in postings}
+        browse += [
+            posting for posting in load_role_postings(role, engine, include_closed=True)
+            if posting["id"] not in listed_ids
+            and (selected_country == "All countries"
+                 or (posting.get("country") or "Unknown") == selected_country)
+            and (selected_region == "All provinces/states"
+                 or (posting.get("region") or "Unknown") == selected_region)
+        ]
+    if not browse:
+        st.caption("Nothing to show yet.")
+    else:
         st.dataframe(
             pd.DataFrame(
                 {
                     "Title": posting["title"],
+                    "Status": "No longer listed" if posting.get("no_longer_listed") else "Listed",
                     "Company": posting["company"],
                     "Location": posting["location"],
                     "Country": posting.get("country") or "Unknown",
@@ -346,12 +380,14 @@ else:
                     "Excerpt only": posting["is_truncated"],
                     "URL": posting["url"],
                 }
-                for posting in postings
+                for posting in browse
             ),
             width="stretch",
             hide_index=True,
             column_config={"URL": st.column_config.LinkColumn("URL", display_text="Open")},
         )
+
+if postings:
     if any(posting["is_truncated"] for posting in postings):
         limited_sources = {
             posting["source"] for posting in postings if posting["is_truncated"]
@@ -396,7 +432,7 @@ if resume_text:
             "the recurring-requirements and occupation tabs still compare your resume text directly."
         )
 else:
-    st.info("Upload your resume (PDF, DOCX or TXT) in the sidebar to see your fit and skill gaps. "
+    st.info("Upload your resume (PDF or DOCX) in the sidebar to see your fit and skill gaps. "
             "Until then, the tabs below show what this role asks for.")
 
 selected_view = st.segmented_control(
@@ -414,9 +450,33 @@ selected_view = st.segmented_control(
 
 if selected_view == "Posting-based skills":
     if not postings:
-        st.info("Fetch postings for this role to score demand and gaps.")
+        st.info("No postings have been collected for this role yet.")
     else:
+        resume_record = st.session_state.get(RESUME_STATE_KEY)
+        # Identify the inputs by content, not just count: replaced or edited postings
+        # are a new analysis (and get saved again).
+        analysis_key = (
+            resume_record["id"] if resume_record else "", role, selected_country, selected_region,
+            postings_fingerprint(postings),
+        )
+        seen_analyses = st.session_state.setdefault("analysis_keys", set())
+        if resume_text and analysis_key not in seen_analyses:
+            if not limiter.allow("analysis", *rate_limit_keys(visitor_ip, session_id)):
+                st.error("Too many analyses in a short time. Please wait a while and try again.")
+                st.stop()
+            seen_analyses.add(analysis_key)
         analysis = cached_analysis(resume_text, postings)
+        if resume_text and resume_record and analysis_key not in resume_record["saved_analyses"]:
+            try:
+                with engine.begin() as conn:
+                    save_analysis(
+                        conn, resume_id=resume_record["id"], role=role,
+                        fit_score=analysis["fit_score"], postings_count=len(postings),
+                        skills=analysis["skills"],
+                    )
+                resume_record["saved_analyses"].add(analysis_key)
+            except Exception:  # noqa: BLE001 - e.g. the resume was already deleted
+                pass
         if resume_text:
             fit_col, matched_col, gaps_col = st.columns(3)
             fit_col.metric("Role fit", f"{analysis['fit_score']:.0f}%")
@@ -547,7 +607,7 @@ if selected_view == "Posting-based skills":
 
 elif selected_view == "Other recurring requirements":
     if not postings:
-        st.info("Fetch postings for this role to find recurring requirements.")
+        st.info("No postings have been collected for this role yet.")
     else:
         render_discovered_phrases(
             cached_phrases(
@@ -565,7 +625,7 @@ elif selected_view == "O*NET occupation baseline":
 
 elif selected_view == "Related postings":
     if not postings:
-        st.info("Fetch postings for this role to browse related descriptions.")
+        st.info("No postings have been collected for this role yet.")
     elif not resume_text:
         st.info("Upload your resume to rank postings by similarity to it.")
     else:
@@ -588,7 +648,7 @@ elif selected_view == "Related postings":
 
 st.divider()
 st.caption(
-    "Job postings: [Jobs by Adzuna](https://www.adzuna.ca) and configured Greenhouse/Lever boards. "
+    "Job postings: [Jobs by Adzuna](https://www.adzuna.ca), collected hourly. "
     "Occupation data (technologies, tools, job titles) includes information from the "
     "[O*NET 30.0 Database](https://www.onetcenter.org/database.html) by the U.S. Department of Labor, "
     "Employment and Training Administration (USDOL/ETA), used under the "

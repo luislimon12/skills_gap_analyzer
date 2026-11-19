@@ -1,0 +1,21 @@
+# Hourly ingestion worker. Installed by deploy/README.md, step "Scheduling".
+[Unit]
+Description=Skills Gap Analyzer ingestion worker (one cycle)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=skillsgap
+Group=skillsgap
+WorkingDirectory=/opt/skills_gap_analyzer
+EnvironmentFile=/opt/skills_gap_analyzer/.env
+Environment=HOME=/opt/skills_gap_analyzer/data/home
+ExecStart=/opt/skills_gap_analyzer/.venv/bin/python -m src.worker run
+TimeoutStartSec=50min
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/skills_gap_analyzer/data

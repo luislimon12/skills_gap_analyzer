@@ -1,8 +1,10 @@
 # Shared config - all roles read from this file.
+# Local SQLite file, used by BOTH the worker and the dashboard.
+# Ignored when DATABASE_URL is set in .env (production PostgreSQL).
 database_path: "data/skills_gap.db"
 
-# Example roles offered in the dashboard. Any other job title can be typed in
-# the dashboard; Adzuna searches it and O*NET occupations are matched automatically.
+# Fallback role list. The dashboard offers the roles the worker collects
+# (queries in config/ingestion.yaml); this list is used only if that is empty.
 target_roles:
   - "Data Analyst"
   - "Software Developer"
@@ -32,3 +34,6 @@ onet_occupations:
   "Software Developer": ["15-1252.00", "15-1253.00", "15-1254.00"]
 
 # API keys are NOT stored here - they go in .env (see .env.example)
+
+# Shown on the Privacy policy page. Use a project/team address, not a personal one.
+privacy_contact: ""
