@@ -22,9 +22,27 @@ See [`docs/sparknotes_main.md`](docs/sparknotes_main.md) for the architecture,
 data flow, and scoring formulas, and [`docs/TEAM_HANDOFF.md`](docs/TEAM_HANDOFF.md)
 for module contracts.
 
+## How it fits together
+
+```mermaid
+flowchart LR
+    ADZ["Adzuna API"] --> W["Ingestion worker<br/>hourly: budget, backfill,<br/>retries, link check<br/>src/worker, src/sources"]
+    W --> DB[("Database<br/>SQLite or PostgreSQL<br/>src/db")]
+    S(["Student"]) -->|"role + PDF/DOCX resume"| APP["Streamlit app<br/>src/dashboard<br/>reads the database only"]
+    APP -->|"resume checks + parsing<br/>src/resume"| M["Skill matcher + scoring<br/>src/scoring"]
+    TAX["Taxonomy<br/>curated CSVs + O*NET"] --> M
+    DB -->|"listed jobs for the role"| M
+    M --> APP
+    APP -->|"skills + scores only,<br/>deleted after 30 days"| DB
+    APP --> OUT(["Fit score, ranked skill gaps,<br/>salary context"])
+```
+
+The worker is the only thing that calls the job API. The app never does, so it
+keeps working (on the last collected data) if the API is down or the quota is used up.
+
 ## Quick start
 
-1. Clone or download the repo.
+1. Clone or download the repo. Python 3.10 or newer is required (CI runs 3.12).
 2. Copy `.env.example` to `.env` and add your Adzuna keys from
    <https://developer.adzuna.com/> (`ADZUNA_APP_ID`, `ADZUNA_APP_KEY`).
 3. Fill the database once (later the scheduler does this every hour):
@@ -37,7 +55,8 @@ for module contracts.
    python -m src.worker status
    ```
 4. Launch the app with one click: `run.bat` (Windows), `run.command` (macOS),
-   or `./run.sh` (Linux), or run `streamlit run src/dashboard/app.py`.
+   or `./run.sh` (Linux) (all call `python run.py`), or run
+   `streamlit run src/dashboard/app.py`.
 
 In the sidebar, pick a role and upload your resume. There is no "fetch" button:
 postings come from the database the worker fills.
@@ -79,24 +98,28 @@ Schema changes go through Alembic (`alembic revision -m "..."`, then
 ### Legacy multi-source pull
 
 `python -m src.pipeline.run_pipeline` still pulls Adzuna, the monthly Canada
-Job Bank CSV, and Greenhouse/Lever boards into the older `postings` table for
-experiments. The web app no longer reads that table.
-
-Use the **Country** and **Province / state** selectors above the results to
-filter the stored posting sample before analysis. These filters do not fetch
-extra pages; they filter postings already in the database.
+Job Bank CSV, and Greenhouse/Lever boards into the older `postings` table in the
+local SQLite file, for experiments. The web app no longer reads that table, and
+this pull ignores `DATABASE_URL`.
 
 ## What the dashboard shows
 
+- **Sidebar**: pick a role (the roles the worker collects), upload a resume,
+  and see how your data is used. **Delete my resume** removes it right away.
+- **Country and Province / state** selectors filter the stored posting sample
+  before analysis. They don't fetch anything; they filter postings already in
+  the database.
 - **Job market sample**: postings in the sample, Adzuna's live listing count,
-  the median advertised salary in the sample, and Adzuna's mean salary for the
-  search.
+  the median advertised salary in the sample (shown per country when several
+  are mixed), and Adzuna's mean salary for the search. A posting browser can
+  also show postings that are no longer listed.
 - **Matching occupation**: the role is matched automatically to O*NET
   occupations using ~61,000 O*NET job titles (and common abbreviations such as
   PSW, RPN, ECE, AZ driver). You can add or remove occupations in the picker.
 - **Posting-based skills**: role fit (cosine similarity), recommended skills to
   learn next ranked by GapScore, a demand chart with 95% Wilson intervals, the
-  full skill table, and a CSV download.
+  full skill table, a CSV download, and "Find postings by skills" (select
+  chart bars, avoid skills, see matching postings).
 - **Other recurring requirements**: short phrases that recur across the
   postings but aren't in the taxonomy (e.g. "steel-toe boots", "cross-border
   routes"), flagged when your resume doesn't mention them. Hints only: they
@@ -106,6 +129,9 @@ extra pages; they filter postings already in the database.
   mentions. Reference only: it does not change scores.
 - **Related postings**: experimental TF-IDF similarity and keyword hits for
   browsing descriptions.
+- **Privacy policy** page, and a dark mode toggle.
+
+It also works without a resume: it then shows what the role asks for.
 
 ## Skill taxonomy (Lightcast replaced)
 
@@ -139,7 +165,7 @@ Categories group related skills for display without merging their matches or sco
 for example, Artificial Intelligence and Machine Learning remain separate skills
 under `AI & Machine Learning`.
 Avoid aliases that appear in benefits boilerplate ("compensation", "health
-insurance", "flexible scheduling"); `tests/test_taxonomy.py` checks for these.
+insurance", "flexible scheduling").
 
 Roles are matched to O*NET occupations automatically. To pin specific
 occupations for a role, add it under `onet_occupations` in
@@ -168,7 +194,7 @@ python -m pytest                                   # SQLite
 TEST_DATABASE_URL=postgresql+psycopg://user:pass@localhost/skills_gap_test python -m pytest   # PostgreSQL
 ```
 
-The suite (about 75 tests in `tests/`) never calls a real API: `tests/conftest.py`
+The suite (90 tests in `tests/`) never calls a real API: `tests/conftest.py`
 blocks HTTP and removes API keys, and the Adzuna adapter is tested against a
 recorded response. It covers the adapters and fallback rule, deduplication,
 the stale/closed/reactivated lifecycle, the request budget and backfill, retries,
@@ -214,10 +240,13 @@ DO NOT COMMIT THE KEYS FOR THE LOVE OF GOD
 
 | Role | Owns | Folder |
 |---|---|---|
-| 1 — Data Pipeline | Postings fetch, dedup, storage | `src/pipeline/` |
-| 2 — Resume Ingestion | PDF/DOCX parsing, upload validation | `src/resume/` |
-| 3 — Scoring Engine | Taxonomy matcher, scoring math | `src/scoring/` |
-| 4 — Dashboard | Streamlit UI, wiring it together | `src/dashboard/` |
+| 1: Data Pipeline | Job sources, ingestion worker, job and run database, legacy pull | `src/sources/`, `src/worker/`, `src/db/`, `src/pipeline/` |
+| 2: Resume Ingestion | PDF/DOCX parsing, upload validation | `src/resume/` |
+| 3: Scoring Engine | Taxonomy matcher, scoring math | `src/scoring/` |
+| 4: Dashboard | Streamlit UI, rate limits, privacy page, wiring it together | `src/dashboard/` |
+
+Deployment files (systemd, Windows tasks, Cloudflare, backups) are in
+[`deploy/`](deploy/README.md). Schema migrations are in `migrations/`.
 
 Never commit `.env` files, resume data, generated databases, virtual
 environments, or raw/processed API output. The existing `.gitignore` is the
